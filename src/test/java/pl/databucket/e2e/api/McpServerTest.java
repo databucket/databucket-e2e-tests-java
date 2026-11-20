@@ -69,7 +69,7 @@ class McpServerTest {
 
         ApiResponse tools = rpc(agent, "tools/list", obj());
         assertThat(tools.<List<String>>path("result.tools.name")).containsExactlyInAnyOrder(
-                "delete_data", "describe_bucket", "find_data", "get_data", "insert_data", "list_buckets",
+                "create_bucket", "delete_data", "describe_bucket", "find_data", "generate_data", "get_data", "insert_data", "list_buckets",
                 "release_data", "reserve_data", "search_history", "update_data");
     }
 
