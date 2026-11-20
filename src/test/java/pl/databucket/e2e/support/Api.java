@@ -1,5 +1,8 @@
 package pl.databucket.e2e.support;
 
+import pl.databucket.e2e.client.BucketApi;
+import pl.databucket.e2e.client.Settings;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -68,6 +71,16 @@ public final class Api {
     /** The same user, not reported: for preparing data. */
     public Api quiet() {
         return new Api(user, token, true);
+    }
+
+    /** The data of a bucket, with the properties of the rows read as {@code type} (a record, or Map.class). */
+    public <T> BucketApi<T> bucket(String name, Class<T> type) {
+        return new BucketApi<>(this, name, type);
+    }
+
+    /** The settings of the project (ADMIN), and the session of the web application. */
+    public Settings settings() {
+        return new Settings(this);
     }
 
     public ApiResponse get(String path) {

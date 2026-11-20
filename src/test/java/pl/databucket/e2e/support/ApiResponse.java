@@ -1,5 +1,8 @@
 package pl.databucket.e2e.support;
 
+import com.fasterxml.jackson.databind.JavaType;
+
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -16,5 +19,20 @@ public record ApiResponse(int status, Map<String, String> headers, String text) 
      */
     public <T> T path(String path) {
         return Json.path(text, path);
+    }
+
+    /** The body read as the model: {@code response.as(Tag.class)}. */
+    public <T> T as(Class<T> type) {
+        return Json.read(text, Json.MAPPER.constructType(type));
+    }
+
+    /** The body read as a generic model: {@code response.as(Json.type(DataPage.class, Person.class))}. */
+    public <T> T as(JavaType type) {
+        return Json.read(text, type);
+    }
+
+    /** The body read as a list: {@code response.asListOf(Tag.class)}. */
+    public <T> List<T> asListOf(Class<T> type) {
+        return Json.read(text, Json.listOf(type));
     }
 }
