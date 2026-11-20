@@ -60,6 +60,8 @@ public final class BrowserExtension implements ParameterResolver, AfterEachCallb
             Path videos = Files.createTempDirectory("e2e-video");
             BrowserContext browserContext = BROWSER.get().newContext(new Browser.NewContextOptions()
                     .setBaseURL(Env.BASE_URL)
+                    // English whatever the system language: the server translates some messages (Accept-Language)
+                    .setLocale("en-US")
                     .setViewportSize(1440, 900)
                     .setRecordVideoDir(videos)
                     .setRecordVideoSize(1440, 900));
