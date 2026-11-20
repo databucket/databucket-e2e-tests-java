@@ -1,19 +1,20 @@
 package pl.databucket.e2e.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import pl.databucket.e2e.support.Api;
-import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.client.BucketApi;
+import pl.databucket.e2e.client.Change;
+import pl.databucket.e2e.client.Search;
+import pl.databucket.e2e.model.HistoryPage;
+import pl.databucket.e2e.model.RowHistory;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
-import static pl.databucket.e2e.support.Call.call;
-import static pl.databucket.e2e.support.Json.arr;
-import static pl.databucket.e2e.support.Json.obj;
+import static pl.databucket.e2e.client.Rules.logic;
+import static pl.databucket.e2e.client.Rules.var;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
 
 @ApiSuite
@@ -21,7 +22,10 @@ import static pl.databucket.e2e.support.UserKey.ROBOT;
 class DataHistoryTest {
 
     private static final String BUCKET = "orders";
-    private static final String DATA = "/api/bucket/" + BUCKET;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record Order(String status, String customer) {
+    }
 
     @BeforeEach
     void bucket(TestProject project) {
@@ -30,30 +34,25 @@ class DataHistoryTest {
 
     @Test
     void records_the_changes_of_a_row(TestProject project) {
-        Api robot = project.as(ROBOT);
-        ApiResponse row = robot.post(DATA, call().v2().body(obj("properties", obj("status", "NEW"))).expect(201));
-        String rowPath = DATA + "/" + row.<Number>path("id");
-        robot.put(rowPath, call().v2().body(obj("propertiesToSet", obj("$.status", "PAID"))).expect(200));
+        BucketApi<Order> orders = project.as(ROBOT).bucket(BUCKET, Order.class);
+        long id = orders.insert(new Order("NEW", null)).id();
+        orders.update(Change.set("$.status", "PAID"), id);
 
-        ApiResponse history = robot.get(rowPath + "/history", call().v2().expect(200));
-
-        assertThat(history.<List<?>>path("$")).hasSize(2);
-        assertThat(history.<List<String>>path("modified_by")).containsOnly(project.user(ROBOT).username());
+        assertThat(orders.history(id)).hasSize(2)
+                .extracting(RowHistory::modifiedBy).containsOnly(project.user(ROBOT).username());
     }
 
     @Test
     void searches_the_history_of_the_rows_matching_the_rules(TestProject project) {
-        Api robot = project.as(ROBOT);
-        ApiResponse paid = robot.post(DATA, call().v2().body(obj("properties", obj("status", "NEW", "customer", "Alice"))).expect(201));
-        robot.post(DATA, call().v2().body(obj("properties", obj("status", "NEW", "customer", "Bob"))).expect(201));
-        long paidId = paid.<Number>path("id").longValue();
-        robot.put(DATA + "/" + paidId, call().v2().body(obj("propertiesToSet", obj("$.status", "PAID"))).expect(200));
+        BucketApi<Order> orders = project.as(ROBOT).bucket(BUCKET, Order.class);
+        long paid = orders.insert(new Order("NEW", "Alice")).id();
+        orders.insert(new Order("NEW", "Bob"));
+        orders.update(Change.set("$.status", "PAID"), paid);
 
-        ApiResponse search = robot.post(DATA + "/history/get?limit=10&properties=true", call().v2()
-                .body(obj("logic", obj("==", arr(obj("var", "$.customer"), "Alice"))))
-                .expect(200));
+        HistoryPage<Order> search = orders.searchHistory(Search.all()
+                .logic(logic("==", var("$.customer"), "Alice")).limit(10).withProperties());
 
-        assertThat(search.<Integer>path("total")).isEqualTo(2);
-        assertThat(search.<List<Number>>path("history.dataId")).allMatch(dataId -> dataId.longValue() == paidId);
+        assertThat(search.total()).isEqualTo(2);
+        assertThat(search.entries()).extracting(HistoryPage.Entry::dataId).containsOnly(paid);
     }
 }

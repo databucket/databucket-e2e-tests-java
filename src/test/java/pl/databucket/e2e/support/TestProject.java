@@ -1,5 +1,7 @@
 package pl.databucket.e2e.support;
 
+import pl.databucket.e2e.client.Management;
+
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -62,6 +64,11 @@ public final class TestProject implements AutoCloseable {
             users.put(key, user);
         }
         return new TestProject(superApi, projectId, name, users);
+    }
+
+    /** The management of all projects and users, as the SUPER user that made this project. */
+    public Management management() {
+        return new Management(superApi.loud());
     }
 
     public long id() {

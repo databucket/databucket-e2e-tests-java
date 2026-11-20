@@ -28,6 +28,7 @@ dependencies {
     testImplementation("io.rest-assured:rest-assured:6.3.0")
     testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.23.0"))
     testImplementation("com.fasterxml.jackson.core:jackson-databind")
+    testImplementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
     testImplementation("com.microsoft.playwright:playwright:1.65.0")
     testImplementation("io.qameta.allure:allure-junit5:2.35.6")
     testImplementation("org.assertj:assertj-core:3.27.7")

@@ -1,26 +1,29 @@
 package pl.databucket.e2e.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import pl.databucket.e2e.support.Api;
-import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.client.BucketApi;
+import pl.databucket.e2e.client.Change;
+import pl.databucket.e2e.client.Search;
+import pl.databucket.e2e.model.DataRow;
+import pl.databucket.e2e.model.Message;
+import pl.databucket.e2e.model.Reservation;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.IntFunction;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static pl.databucket.e2e.support.Call.call;
-import static pl.databucket.e2e.support.Json.arr;
-import static pl.databucket.e2e.support.Json.obj;
+import static pl.databucket.e2e.client.Rules.rule;
 import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
@@ -31,37 +34,25 @@ import static pl.databucket.e2e.support.UserKey.ROBOT;
 class ReservationTest {
 
     private static final String BUCKET = "accounts";
-    private static final String DATA = "/api/bucket/" + BUCKET;
 
-    private Api robot;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record Account(String login, String plan) {
+    }
+
+    private BucketApi<Account> accounts;
 
     @BeforeEach
     void bucket(TestProject project) {
         project.createBucket(BUCKET);
-        robot = project.as(ROBOT);
+        accounts = project.as(ROBOT).bucket(BUCKET, Account.class);
     }
 
     private static void seed(TestProject project, int count) {
-        seed(project, count, i -> obj("login", "user-" + i));
+        seed(project, count, i -> new Account("user-" + i, null));
     }
 
-    private static void seed(TestProject project, int count, IntFunction<Map<String, Object>> properties) {
-        List<Object> rows = new ArrayList<>();
-        for (int i = 1; i <= count; i++) rows.add(obj("properties", properties.apply(i)));
-        project.quietly(ROBOT).post(DATA + "/multi", call().body(rows).expect(201));
-    }
-
-    private static ApiResponse reserve(Api api, String query) {
-        return reserve(api, query, obj());
-    }
-
-    private static ApiResponse reserve(Api api, String query, Map<String, Object> body) {
-        return api.post(DATA + "/reserve?" + query, call().body(body).expect(200));
-    }
-
-    private static List<Number> ids(ApiResponse response) {
-        List<Number> ids = response.path("data.id");
-        return ids == null ? List.of() : ids;
+    private static void seed(TestProject project, int count, IntFunction<Account> account) {
+        project.quietly(ROBOT).bucket(BUCKET, Account.class).insertAll(IntStream.rangeClosed(1, count).mapToObj(account).toList());
     }
 
     @Test
@@ -69,12 +60,12 @@ class ReservationTest {
     void limit_0(TestProject project) {
         seed(project, 4);
 
-        ApiResponse count = reserve(robot, "limit=0");
-        ApiResponse again = reserve(robot, "limit=0");
+        Reservation<Account> count = accounts.reserve(Search.all().limit(0));
+        Reservation<Account> again = accounts.reserve(Search.all().limit(0));
 
-        assertThat(count.<Integer>path("reserved")).isZero();
-        assertThat(count.<Integer>path("available")).isEqualTo(4);
-        assertThat(again.<Integer>path("available")).isEqualTo(4);
+        assertThat(count.reserved()).isZero();
+        assertThat(count.available()).isEqualTo(4);
+        assertThat(again.available()).isEqualTo(4);
     }
 
     @Test
@@ -82,66 +73,65 @@ class ReservationTest {
     void available(TestProject project) {
         seed(project, 5);
 
-        ApiResponse counted = reserve(robot, "limit=2");
-        ApiResponse notCounted = reserve(robot, "limit=1&count=false");
+        Reservation<Account> counted = accounts.reserve(Search.all().limit(2));
+        Reservation<Account> notCounted = accounts.reserve(Search.all().limit(1).count(false));
 
-        assertThat(counted.<Integer>path("reserved")).isEqualTo(2);
-        assertThat(counted.<Integer>path("available")).isEqualTo(3);
-        assertThat(notCounted.<Integer>path("reserved")).isEqualTo(1);
-        assertThat(notCounted.<Object>path("available")).isNull();
+        assertThat(counted.reserved()).isEqualTo(2);
+        assertThat(counted.available()).isEqualTo(3);
+        assertThat(notCounted.reserved()).isEqualTo(1);
+        assertThat(notCounted.available()).isNull();
     }
 
     @Test
     void reserves_only_the_rows_matching_the_rules(TestProject project) {
-        seed(project, 6, i -> obj("login", "user-" + i, "plan", i % 2 == 1 ? "free" : "premium"));
+        seed(project, 6, i -> new Account("user-" + i, i % 2 == 1 ? "free" : "premium"));
 
-        ApiResponse response = reserve(robot, "limit=10", obj("rules", arr(arr("$.plan", "==", "premium"))));
+        Reservation<Account> reservation = accounts.reserve(Search.where(rule("$.plan", "==", "premium")).limit(10));
 
-        assertThat(response.<Integer>path("reserved")).isEqualTo(3);
-        assertThat(response.<List<String>>path("data.properties.plan")).containsExactly("premium", "premium", "premium");
-        assertThat(response.<Integer>path("available")).isZero();
+        assertThat(reservation.reserved()).isEqualTo(3);
+        assertThat(reservation.rows()).extracting(row -> row.properties().plan()).containsOnly("premium");
+        assertThat(reservation.available()).isZero();
     }
 
     @Test
     void when_nothing_is_free_there_is_a_message_not_an_error(TestProject project) {
         seed(project, 1);
-        reserve(robot, "limit=1");
+        accounts.reserve(Search.all().limit(1));
 
-        ApiResponse response = reserve(robot, "limit=1");
+        Reservation<Account> reservation = accounts.reserve(Search.all().limit(1));
 
-        assertThat(response.<Integer>path("reserved")).isZero();
-        assertThat(response.<Integer>path("available")).isZero();
-        assertThat(response.<String>path("message")).isEqualTo("No data matches the rules!");
+        assertThat(reservation.reserved()).isZero();
+        assertThat(reservation.available()).isZero();
+        assertThat(reservation.message()).isEqualTo("No data matches the rules!");
     }
 
     @Test
     void rows_reserved_by_one_user_are_not_given_to_another(TestProject project) {
         seed(project, 3);
-        Api member = project.as(MEMBER);
 
-        ApiResponse memberGot = reserve(member, "limit=2");
-        ApiResponse robotGot = reserve(robot, "limit=5");
+        Reservation<Account> memberGot = project.as(MEMBER).bucket(BUCKET, Account.class).reserve(Search.all().limit(2));
+        Reservation<Account> robotGot = accounts.reserve(Search.all().limit(5));
 
-        assertThat(ids(memberGot)).hasSize(2);
-        assertThat(ids(robotGot)).hasSize(1);
-        assertThat(ids(robotGot)).doesNotContainAnyElementsOf(ids(memberGot));
-        assertThat(robotGot.<List<String>>path("data.owner")).containsExactly(project.user(ROBOT).username());
+        assertThat(memberGot.ids()).hasSize(2);
+        assertThat(robotGot.ids()).hasSize(1).doesNotContainAnyElementsOf(memberGot.ids());
+        assertThat(robotGot.rows()).extracting(DataRow::owner).containsExactly(project.user(ROBOT).username());
     }
 
     @Test
     void parallel_reservations_never_get_the_same_row(TestProject project) throws Exception {
         seed(project, 30);
-        List<Api> clients = List.of(project.quietly(ROBOT), project.quietly(MEMBER), project.quietly(AGENT));
+        List<BucketApi<Account>> clients = List.of(project.quietly(ROBOT).bucket(BUCKET, Account.class),
+                project.quietly(MEMBER).bucket(BUCKET, Account.class), project.quietly(AGENT).bucket(BUCKET, Account.class));
 
-        List<Number> ids = new ArrayList<>();
+        List<Long> ids = new ArrayList<>();
         ExecutorService pool = Executors.newFixedThreadPool(30);
         try {
-            List<CompletableFuture<ApiResponse>> calls = new ArrayList<>();
+            List<CompletableFuture<Reservation<Account>>> calls = new ArrayList<>();
             for (int i = 0; i < 30; i++) {
-                Api client = clients.get(i % clients.size());
-                calls.add(CompletableFuture.supplyAsync(() -> reserve(client, "limit=1&sort=random"), pool));
+                BucketApi<Account> client = clients.get(i % clients.size());
+                calls.add(CompletableFuture.supplyAsync(() -> client.reserve(Search.all().limit(1).sort("random")), pool));
             }
-            for (CompletableFuture<ApiResponse> call : calls) ids.addAll(ids(call.get()));
+            for (CompletableFuture<Reservation<Account>> call : calls) ids.addAll(call.get().ids());
         } finally {
             pool.shutdown();
         }
@@ -149,76 +139,64 @@ class ReservationTest {
         assertThat(new HashSet<>(ids)).hasSize(ids.size());
         // every row is taken once at most; a reservation that met only taken rows got none
         assertThat(ids).isNotEmpty();
-        assertThat(reserve(robot, "limit=0").<Integer>path("available")).isEqualTo(30 - ids.size());
+        assertThat(accounts.reserve(Search.all().limit(0)).available()).isEqualTo(30 - ids.size());
     }
 
     @Test
     void released_rows_can_be_reserved_again(TestProject project) {
         seed(project, 1);
-        Api member = project.as(MEMBER);
-        Number id = ids(reserve(robot, "limit=1")).get(0);
+        long id = accounts.reserve(Search.all().limit(1)).ids().get(0);
 
-        robot.put(DATA + "/" + id, call().body(obj("reserved", false)).expect(200));
-        ApiResponse again = reserve(member, "limit=1");
+        accounts.release(id);
+        Reservation<Account> again = project.as(MEMBER).bucket(BUCKET, Account.class).reserve(Search.all().limit(1));
 
-        assertThat(ids(again)).containsExactly(id);
-        assertThat(again.<List<String>>path("data.owner")).containsExactly(project.user(MEMBER).username());
+        assertThat(again.ids()).containsExactly(id);
+        assertThat(again.rows()).extracting(DataRow::owner).containsExactly(project.user(MEMBER).username());
     }
 
     @Test
     @DisplayName("an ADMIN reserves rows for another user; others can not")
     void for_another_user(TestProject project) {
         seed(project, 2);
-        Api admin = project.as(ADMIN);
         String member = project.user(MEMBER).username();
 
-        ApiResponse forMember = reserve(admin, "limit=1", obj("targetOwnerUsername", member));
-        ApiResponse robotTries = reserve(robot, "limit=1", obj("targetOwnerUsername", member));
+        Reservation<Account> forMember = project.as(ADMIN).bucket(BUCKET, Account.class).reserve(Search.all().limit(1).forOwner(member));
+        Reservation<Account> robotTries = accounts.reserve(Search.all().limit(1).forOwner(member));
 
-        assertThat(forMember.<List<String>>path("data.owner")).containsExactly(member);
-        assertThat(robotTries.<List<String>>path("data.owner")).containsExactly(project.user(ROBOT).username());
+        assertThat(forMember.rows()).extracting(DataRow::owner).containsExactly(member);
+        assertThat(robotTries.rows()).extracting(DataRow::owner).containsExactly(project.user(ROBOT).username());
     }
 
     @Test
     void a_negative_limit_is_refused(TestProject project) {
-        ApiResponse response = robot.post(DATA + "/reserve?limit=-1", call().body(obj()));
-
-        assertThat(response.status()).isEqualTo(406);
+        assertThat(accounts.tryReserve(Search.all().limit(-1)).status()).isEqualTo(406);
     }
 
     @Test
     void reserving_by_rules_changes_only_the_free_rows(TestProject project) {
         seed(project, 3);
-        reserve(project.as(MEMBER), "limit=1");
+        project.as(MEMBER).bucket(BUCKET, Account.class).reserve(Search.all().limit(1));
 
-        ApiResponse response = robot.put(DATA, call().body(obj("rules", arr(arr("id", ">", 0)), "reserved", true)).expect(200));
+        Message message = accounts.updateWhere(Change.reserve(true).where(rule("id", ">", 0)));
 
-        assertThat(response.<String>path("message")).isEqualTo("Modified 2 data row(s)");
-        ApiResponse owners = robot.post(DATA + "/get?limit=10", call().body(obj()).expect(200));
-        assertThat(owners.<List<String>>path("data.owner")).containsExactly(
+        assertThat(message.message()).isEqualTo("Modified 2 data row(s)");
+        assertThat(accounts.find(Search.all().limit(10)).rows()).extracting(DataRow::owner).containsExactly(
                 project.user(MEMBER).username(), project.user(ROBOT).username(), project.user(ROBOT).username());
     }
 
     @Test
     void in_a_bucket_with_protected_data_each_user_sees_only_the_rows_they_reserved(TestProject project) {
         project.createBucket("vault", true, true);
-        Api admin = project.quietly(ADMIN);
-        admin.post("/api/bucket/vault/multi", call().body(arr(
-                obj("properties", obj("login", "a")),
-                obj("properties", obj("login", "b")),
-                obj("properties", obj("login", "c")))).expect(201));
-        Api member = project.as(MEMBER);
+        BucketApi<Account> asAdmin = project.quietly(ADMIN).bucket("vault", Account.class);
+        asAdmin.insertAll(new Account("a", null), new Account("b", null), new Account("c", null));
+        BucketApi<Account> asMember = project.as(MEMBER).bucket("vault", Account.class);
 
-        ApiResponse reserved = member.post("/api/bucket/vault/reserve?limit=1", call().body(obj()).expect(200));
-        ApiResponse memberSees = member.post("/api/bucket/vault/get?limit=10", call().body(obj()).expect(200));
-        ApiResponse robotSees = robot.post("/api/bucket/vault/get?limit=10", call().body(obj()).expect(200));
-        ApiResponse adminSees = admin.post("/api/bucket/vault/get?limit=10", call().body(obj()).expect(200));
+        Reservation<Account> reserved = asMember.reserve(Search.all().limit(1));
 
         // free rows are counted for everyone, as anyone may reserve them
-        assertThat(reserved.<Integer>path("available")).isEqualTo(2);
-        assertThat(memberSees.<List<String>>path("data.properties.login"))
-                .isEqualTo(reserved.<List<String>>path("data.properties.login"));
-        assertThat(robotSees.<List<Object>>path("data")).isNullOrEmpty();
-        assertThat(adminSees.<Integer>path("total")).isEqualTo(3);
+        assertThat(reserved.available()).isEqualTo(2);
+        assertThat(asMember.properties(Search.all())).containsExactly(reserved.rows().get(0).properties());
+        assertThat(project.as(ROBOT).bucket("vault", Account.class).properties(Search.all())).isEmpty();
+        assertThat(asAdmin.count(Search.all())).isEqualTo(3);
     }
 }
