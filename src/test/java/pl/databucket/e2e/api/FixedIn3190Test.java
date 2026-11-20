@@ -1,6 +1,5 @@
 package pl.databucket.e2e.api;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import pl.databucket.e2e.client.BucketApi;
@@ -33,13 +32,12 @@ import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
 
 /**
- * Behaviour the server should have but doesn't yet (found by these tests). Each test says what is expected and is
- * disabled with the reason and the pull request that fixes it; when a Databucket with the fix is released, remove
- * @Disabled (or move the test to the class of its topic).
+ * What these tests found wrong in the server and 3.19.0 fixed (databucket-server#266-#270): kept as regression tests.
+ * The comment of each test says how it was before.
  */
 @ApiSuite
-@DisplayName("Known issues of the server")
-class KnownIssuesTest {
+@DisplayName("Fixed in 3.19.0")
+class FixedIn3190Test {
 
     record Login(String login) {
     }
@@ -47,7 +45,7 @@ class KnownIssuesTest {
     // ---------------------------------------------------------------- tokens
 
     @Test
-    @Disabled("server: a token stays valid until it expires (24 h) after its project is disabled; fixed by databucket-server#268")
+    // before 3.19.0: a token stays valid until it expires (24 h) after its project is disabled; fixed by databucket-server#268
     void a_token_stops_working_when_its_project_is_disabled(TestProject project) {
         Management management = project.management();
         project.createBucket("orders");
@@ -62,7 +60,7 @@ class KnownIssuesTest {
     }
 
     @Test
-    @Disabled("server: a token stays valid until it expires (24 h) after its user is disabled; fixed by databucket-server#268")
+    // before 3.19.0: a token stays valid until it expires (24 h) after its user is disabled; fixed by databucket-server#268
     void a_token_stops_working_when_its_user_is_disabled(TestProject project) {
         project.createBucket("orders");
         String token = project.token(ROBOT);
@@ -75,7 +73,7 @@ class KnownIssuesTest {
     }
 
     @Test
-    @Disabled("server: a token stays valid until it expires (24 h) after its user is taken out of the project; fixed by databucket-server#268")
+    // before 3.19.0: a token stays valid until it expires (24 h) after its user is taken out of the project; fixed by databucket-server#268
     void a_token_stops_working_when_its_user_leaves_the_project(TestProject project) {
         project.createBucket("orders");
         String token = project.token(ROBOT);
@@ -88,7 +86,7 @@ class KnownIssuesTest {
     }
 
     @Test
-    @Disabled("server: the roles written into a token apply until it expires (24 h), also after a role is taken away; fixed by databucket-server#268")
+    // before 3.19.0: the roles written into a token apply until it expires (24 h), also after a role is taken away; fixed by databucket-server#268
     void a_role_taken_away_applies_at_once(TestProject project) {
         String token = project.token(ADMIN);
         ManagedUser admin = project.management().users().list().stream()
@@ -108,7 +106,7 @@ class KnownIssuesTest {
     // ---------------------------------------------------------------- removing objects in use
 
     @Test
-    @Disabled("server: removing columns used by a view answers 500 (ItemAlreadyUsedException not handled), classes and enums answer 403; fixed by databucket-server#269")
+    // before 3.19.0: removing columns used by a view answers 500 (ItemAlreadyUsedException not handled), classes and enums answer 403; fixed by databucket-server#269
     void columns_used_by_a_view_can_not_be_removed(TestProject project) {
         Settings settings = project.as(ADMIN).settings();
         Columns columns = columns(settings);
@@ -121,7 +119,7 @@ class KnownIssuesTest {
     }
 
     @Test
-    @Disabled("server: removing a filter used by a view answers 500 (ItemAlreadyUsedException not handled), classes and enums answer 403; fixed by databucket-server#269")
+    // before 3.19.0: removing a filter used by a view answers 500 (ItemAlreadyUsedException not handled), classes and enums answer 403; fixed by databucket-server#269
     void a_filter_used_by_a_view_can_not_be_removed(TestProject project) {
         Settings settings = project.as(ADMIN).settings();
         Filter filter = settings.filters().create(new Filter().name("new").configuration(new FilterConfig()
@@ -144,7 +142,7 @@ class KnownIssuesTest {
     // ---------------------------------------------------------------- dates
 
     @Test
-    @Disabled("server: spring.jackson.date-format yyyy-MM-dd'T'HH:mm:ss.SSS'Z' refuses ISO 8601 without milliseconds (400); fixed by databucket-server#270")
+    // before 3.19.0: spring.jackson.date-format yyyy-MM-dd'T'HH:mm:ss.SSS'Z' refuses ISO 8601 without milliseconds (400); fixed by databucket-server#270
     void a_date_without_milliseconds_is_accepted(TestProject project) {
         ApiResponse response = project.management().projects().tryCreate(Map.of(
                 "name", "e2e-date-" + System.nanoTime() % 100000, "enabled", true, "expirationDate", "2030-01-01T00:00:00Z"));
@@ -155,7 +153,7 @@ class KnownIssuesTest {
     }
 
     @Test
-    @Disabled("server: the lenient date format reads nanoseconds as milliseconds and moves the date by days without an error; fixed by databucket-server#270")
+    // before 3.19.0: the lenient date format reads nanoseconds as milliseconds and moves the date by days without an error; fixed by databucket-server#270
     void a_date_with_nanoseconds_is_not_moved(TestProject project) {
         ApiResponse response = project.management().projects().tryCreate(Map.of(
                 "name", "e2e-date-" + System.nanoTime() % 100000, "enabled", true, "expirationDate", "2030-01-01T00:00:00.123456789Z"));
