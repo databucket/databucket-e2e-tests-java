@@ -143,9 +143,14 @@ public final class HttpView {
               });
             """;
 
-    /** Tokens of pretty-printed (and HTML-escaped) JSON: strings (keys when a colon follows), literals, numbers. */
+    /**
+     * Tokens of pretty-printed (and HTML-escaped) JSON: strings (keys when a colon follows), literals, numbers. A string
+     * is matched as runs of plain characters between escapes and '&amp;' (an "unrolled loop", possessive): an
+     * alternation repeated per character recursed per character and overflowed the stack on long texts (e.g. the tool
+     * descriptions of the MCP server).
+     */
     private static final Pattern TOKENS = Pattern.compile(
-            "(&quot;(?:\\\\.|(?!&quot;).)*?&quot;)(\\s*:)?|\\b(true|false|null)\\b|(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)");
+            "(&quot;[^&\\\\]*+(?:(?:\\\\.|&(?!quot;))[^&\\\\]*+)*+&quot;)(\\s*:)?|\\b(true|false|null)\\b|(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)");
 
     private HttpView() {
     }
