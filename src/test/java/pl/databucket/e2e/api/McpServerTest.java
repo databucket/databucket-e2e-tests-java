@@ -34,7 +34,7 @@ class McpServerTest {
         }
     }
 
-    private static ApiResponse rpc(Api api, String method, Map<String, Object> params, String name) {
+    static ApiResponse rpc(Api api, String method, Map<String, Object> params, String name) {
         return api.post("/mcp", call()
                 .header("Accept", MCP_ACCEPT)
                 .body(obj("jsonrpc", "2.0", "id", 1, "method", method, "params", params))
@@ -42,11 +42,11 @@ class McpServerTest {
                 .name(name));
     }
 
-    private static ApiResponse rpc(Api api, String method, Map<String, Object> params) {
+    static ApiResponse rpc(Api api, String method, Map<String, Object> params) {
         return rpc(api, method, params, null);
     }
 
-    private static ToolResult callTool(Api api, String tool, Map<String, Object> arguments) {
+    static ToolResult callTool(Api api, String tool, Map<String, Object> arguments) {
         ApiResponse body = rpc(api, "tools/call", obj("name", tool, "arguments", arguments), "MCP " + tool);
         return new ToolResult(Boolean.TRUE.equals(body.path("result.isError")), body.path("result.content[0].text"));
     }
@@ -69,8 +69,8 @@ class McpServerTest {
 
         ApiResponse tools = rpc(agent, "tools/list", obj());
         assertThat(tools.<List<String>>path("result.tools.name")).containsExactlyInAnyOrder(
-                "create_bucket", "delete_data", "describe_bucket", "find_data", "generate_data", "get_data", "insert_data", "list_buckets",
-                "release_data", "reserve_data", "search_history", "update_data");
+                "create_bucket", "delete_data", "describe_bucket", "find_data", "generate_data", "get_activity", "get_data", "insert_data", "list_buckets",
+                "release_data", "reserve_data", "run_task", "search_history", "update_data");
     }
 
     @Test
