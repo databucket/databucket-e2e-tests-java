@@ -98,6 +98,38 @@ public final class ProjectPage {
         });
     }
 
+    /** The Import/Export button of the toolbar; its name lists the enabled features, e.g. "Import / Export / Generate". */
+    public Locator importExportButton() {
+        return main().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
+                .setName(Pattern.compile("^(Import|Export|Generate)( |$)")));
+    }
+
+    /** The items of the Import/Export menu (empty when the view has none of these features). */
+    public List<String> importExportMenu() {
+        return Allure.step("Read the Import/Export menu", () -> {
+            if (importExportButton().count() == 0)
+                return List.of();
+            importExportButton().click();
+            Locator items = page.getByRole(AriaRole.MENUITEM);
+            assertThat(items.first()).isVisible();
+            List<String> texts = items.allTextContents();
+            page.keyboard().press("Escape");
+            assertThat(items.first()).isHidden();
+            return texts;
+        });
+    }
+
+    /** Opens the dialog "Generate data" from the Import/Export menu. */
+    public GenerateDataDialog openGenerateData() {
+        GenerateDataDialog dialog = new GenerateDataDialog(page);
+        Allure.step("Open Generate data", () -> {
+            importExportButton().click();
+            page.getByRole(AriaRole.MENUITEM, new Page.GetByRoleOptions().setName("Generate data…")).click();
+            assertThat(dialog.dialog()).isVisible();
+        });
+        return dialog;
+    }
+
     private static String rolesOf(String role) {
         List<String> order = List.of("ROBOT", "MEMBER", "ADMIN", "SUPER");
         List<String> roles = new java.util.ArrayList<>(order.subList(0, order.indexOf(role) + 1));

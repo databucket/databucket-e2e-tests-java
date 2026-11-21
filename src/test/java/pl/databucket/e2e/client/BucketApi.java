@@ -3,6 +3,7 @@ package pl.databucket.e2e.client;
 import com.fasterxml.jackson.databind.JavaType;
 import pl.databucket.e2e.model.DataPage;
 import pl.databucket.e2e.model.DataRow;
+import pl.databucket.e2e.model.Generated;
 import pl.databucket.e2e.model.HistoryPage;
 import pl.databucket.e2e.model.HistoryVersion;
 import pl.databucket.e2e.model.Message;
@@ -15,6 +16,7 @@ import pl.databucket.e2e.support.Json;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -68,6 +70,25 @@ public final class BucketApi<T> {
 
     public ApiResponse tryInsertRows(List<? extends NewRow<?>> rows) {
         return api.post(path + "/multi", call().body(rows));
+    }
+
+    // ---------------------------------------------------------------- generating
+
+    /**
+     * Rows generated on the server: {@code request} = {@code fields} (property path -> generator), {@code count} and
+     * optionally {@code tagId}, {@code reserved}, {@code locale}, {@code seed}, {@code startN}.
+     */
+    public Generated generate(Map<String, ?> request) {
+        return api.post(path + "/generate", call().body(request).expect(201)).as(Generated.class);
+    }
+
+    /** The first rows (at most 10) that {@link #generate} would insert; nothing is inserted. */
+    public Generated previewGenerated(Map<String, ?> request) {
+        return api.post(path + "/generate?preview=true", call().body(request).expect(200)).as(Generated.class);
+    }
+
+    public ApiResponse tryGenerate(Map<String, ?> request) {
+        return api.post(path + "/generate", call().body(request));
     }
 
     // ---------------------------------------------------------------- reading
