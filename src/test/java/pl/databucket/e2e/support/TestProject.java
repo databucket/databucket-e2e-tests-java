@@ -20,6 +20,10 @@ import static pl.databucket.e2e.support.Json.obj;
  */
 public final class TestProject implements AutoCloseable {
 
+    /** The features of views have the ids 1..17 (17 = Generate, Databucket 3.20.0+). */
+    public static final int ALL_FEATURES = 17;
+    public static final int FEATURE_GENERATE = 17;
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final Api superApi;
@@ -133,6 +137,11 @@ public final class TestProject implements AutoCloseable {
      * view the GUI shows no data.
      */
     public long createView(long bucketId, String name, Map<String, ?> properties) {
+        return createView(bucketId, name, properties, IntStream.rangeClosed(1, ALL_FEATURES).boxed().toList());
+    }
+
+    /** As {@link #createView(long, String, Map)}, with only the given features (ids as in the settings of views). */
+    public long createView(long bucketId, String name, Map<String, ?> properties, List<Integer> features) {
         Api admin = quietly(UserKey.ADMIN);
         List<Object> props = new ArrayList<>();
         List<String> uuids = new ArrayList<>(List.of("uuid_data_id", "uuid_reserved", "uuid_owner"));
@@ -155,7 +164,7 @@ public final class TestProject implements AutoCloseable {
                 "columnsId", created.<Number>path("id").longValue(),
                 "bucketsIds", arr(bucketId),
                 "roleId", Role.ROBOT.id,
-                "featuresIds", IntStream.rangeClosed(1, 16).boxed().toList(),
+                "featuresIds", features,
                 "sort", "desc(id)"
         )).expect(201));
         return view.<Number>path("id").longValue();
