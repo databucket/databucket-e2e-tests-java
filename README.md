@@ -83,6 +83,15 @@ class DataApiTest {
 
 Test names come from the method names (`_` → space); `@DisplayName` for names that need more than that.
 
+## Published reports
+
+Reports of chosen runs are kept in `reports/<date>/<api|www>/` and open in the browser at
+**https://databucket.github.io/databucket-e2e-tests-java/** (GitHub Pages; `index.html` lists them). To add one, generate
+it without `--single-file` (the single file of a GUI run is over GitHub's 100 MB limit):
+`build/allure-cli/<version>/bin/allure generate build/allure-results/www --clean -o reports/<date>/www`, then add a row to
+`index.html`. In the API report of 2026-11-26 the five responses of `GET /api/manage/users` (every user of the server, ~59 MB
+each) are replaced by a note.
+
 ## The report
 
 [Allure 2](https://allurereport.org) (the classic report, its command line is downloaded by Gradle; no Node.js needed),
