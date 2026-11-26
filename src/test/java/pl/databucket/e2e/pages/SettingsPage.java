@@ -34,7 +34,7 @@ public final class SettingsPage {
 
     /**
      * Waits until the tab is shown and its lists are loaded: a tab reads several lists (e.g. Groups: groups, buckets,
-     * users, teams) and draws its table again when they come, which drops a row being added or deleted.
+     * users, teams). Before 3.26.2 the table was mounted again when they came, which dropped a row being edited.
      */
     public void waitUntilLoaded(String tab) {
         assertThat(tab(tab)).hasAttribute("aria-selected", "true");
@@ -85,8 +85,13 @@ public final class SettingsPage {
         });
     }
 
-    // fills the text fields of the edited row once the lists the tab reads after a click are loaded (the table drawn
-    // again drops what was typed), then checks that they kept their values
+    /** Changes text fields of the row being edited. */
+    public void change(Map<String, ?> fields) {
+        Screenshots.step("Change " + Json.write(fields), () -> fill(fields));
+    }
+
+    // fills the text fields of the edited row once the lists the tab reads after a click are loaded (before 3.26.2 the
+    // table was mounted again and dropped what was typed), then checks that they kept their values
     private void fill(Map<String, ?> fields) {
         Locator editor = editor();
         assertThat(editor).isVisible();
@@ -95,7 +100,8 @@ public final class SettingsPage {
         fields.forEach((name, value) -> assertThat(field(name)).hasValue(String.valueOf(value)));
     }
 
-    private Locator field(String name) {
+    /** A text field of the edited row by its name. */
+    public Locator field(String name) {
         return editor().getByRole(AriaRole.TEXTBOX, new Locator.GetByRoleOptions().setName(name).setExact(true));
     }
 
@@ -163,6 +169,24 @@ public final class SettingsPage {
             editor.getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Save")).click();
             assertThat(editor).isHidden();
         });
+    }
+
+    /** Clicks Save of the edited row expecting a refusal: the row stays in editing. */
+    public void trySave() {
+        Screenshots.step("Try to save", () -> {
+            editor().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Save")).click();
+            assertThat(message()).isVisible();
+        });
+    }
+
+    /** The message shown after an action, e.g. "Item is not valid". */
+    public Locator message() {
+        return page.getByRole(AriaRole.ALERT);
+    }
+
+    /** A button of the edited row, e.g. "Select buckets" (its text: the number chosen). */
+    public Locator editorButton(String name) {
+        return editor().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName(name));
     }
 
     /** Deletes the row containing the text, confirming the question in the row. */
