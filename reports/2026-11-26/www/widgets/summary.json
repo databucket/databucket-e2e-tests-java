@@ -1,1 +1,1 @@
-{"reportName":"Databucket E2E - WWW (2026-11-26)","testRuns":[],"statistic":{"failed":0,"broken":0,"skipped":0,"passed":32,"unknown":0,"total":32},"time":{"start":1795726025767,"stop":1795726101710,"duration":75943,"minDuration":7377,"maxDuration":23139,"sumDuration":497143}}
+{"reportName":"Databucket E2E - WWW (2026-11-26)","testRuns":[],"statistic":{"failed":0,"broken":0,"skipped":0,"passed":32,"unknown":0,"total":32},"time":{"start":1795727103323,"stop":1795727166960,"duration":63637,"minDuration":6629,"maxDuration":19523,"sumDuration":413865}}

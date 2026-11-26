@@ -155,7 +155,15 @@ public final class HttpView {
     private HttpView() {
     }
 
-    public static String render(Exchange x) {
+    /** A body as shown: shortened to {@link ReportConfig#MAX_BODY_KB}, with a note of what was left out (or null). */
+    record Shown(JsonNode body, String note) {
+    }
+
+    public static String render(Exchange full) {
+        Shown request = shorten(full.requestBody());
+        Shown response = shorten(full.responseBody());
+        Exchange x = new Exchange(full.method(), full.url(), full.requestHeaders(), request.body(), full.status(),
+                full.statusText(), full.took(), full.responseHeaders(), response.body());
         boolean failed = x.status() >= 400;
         String data = Json.write(x).replace("<", "\\u003c");
         return "<!doctype html><html><head><meta charset=\"utf-8\"><style>" + STYLE + "</style></head><body>"
@@ -163,11 +171,11 @@ public final class HttpView {
                 + "<span class=\"url mono\">" + esc(x.url()) + "</span>"
                 + "<div class=\"toolbar\"><label><input type=\"checkbox\" id=\"with-headers\"> with headers</label>"
                 + "<button class=\"copy\">Copy</button></div></div>"
-                + "<div class=\"request\">" + headersBlock(x.requestHeaders()) + bodyBlock(x.requestBody()) + "</div>"
+                + "<div class=\"request\">" + headersBlock(x.requestHeaders()) + bodyBlock(x.requestBody(), request.note()) + "</div>"
                 + "<section class=\"" + (failed ? "error" : "") + "\"><h3><span class=\"title\">Response</span>"
                 + "<span class=\"badge s" + String.valueOf(x.status()).charAt(0) + "\">" + x.status() + " " + esc(x.statusText()) + "</span>"
                 + "<span class=\"muted\">" + x.took() + " ms</span></h3>"
-                + headersBlock(x.responseHeaders()) + bodyBlock(x.responseBody()) + "</section>"
+                + headersBlock(x.responseHeaders()) + bodyBlock(x.responseBody(), response.note()) + "</section>"
                 + "<script type=\"application/json\" id=\"exchange\">" + data + "</script><script>" + SCRIPT + "</script>"
                 + "</body></html>";
     }
@@ -179,15 +187,89 @@ public final class HttpView {
         return "<details><summary>Headers (" + headers.size() + ")</summary><table class=\"mono\">" + table + "</table></details>";
     }
 
-    private static String bodyBlock(JsonNode body) {
+    private static String bodyBlock(JsonNode body, String note) {
         if (body == null || body.isNull() || (body.isTextual() && body.asText().isEmpty()))
             return "<details><summary>Body (empty)</summary></details>";
         String text = body.isTextual() ? body.asText() : Json.pretty(body);
         long lines = text.lines().count();
         boolean isLong = lines > LONG_BODY_LINES;
         String content = body.isTextual() ? esc(text) : highlight(text);
-        return "<details" + (isLong ? "" : " open") + "><summary>Body" + (isLong ? " (" + lines + " lines)" : "")
+        String about = note != null ? " (" + esc(note) + ")" : isLong ? " (" + lines + " lines)" : "";
+        return "<details" + (isLong ? "" : " open") + "><summary>Body" + about
                 + "</summary><pre class=\"mono\">" + content + "</pre></details>";
+    }
+
+    // ---------------------------------------------------------------- shortening of big bodies
+
+    static Shown shorten(JsonNode body) {
+        long max = ReportConfig.MAX_BODY_KB * 1024L;
+        if (body == null || max <= 0) return new Shown(body, null);
+        long size = size(body);
+        if (size <= max) return new Shown(body, null);
+        Cut cut = cut(body, max);
+        return new Shown(cut.node(), "shortened: " + mb(size) + ", " + cut.what());
+    }
+
+    private record Cut(JsonNode node, String what) {
+    }
+
+    // the node within about max characters of compact JSON: a list keeps its first items, an object shortens its
+    // biggest field, a text keeps its start
+    private static Cut cut(JsonNode node, long max) {
+        if (node.isArray()) {
+            com.fasterxml.jackson.databind.node.ArrayNode kept = Json.MAPPER.createArrayNode();
+            long used = 2;
+            for (JsonNode item : node) {
+                long itemSize = size(item) + 1;
+                if (used + itemSize > max && !kept.isEmpty()) break;
+                if (used + itemSize > max) return new Cut(kept, "none of the " + node.size() + " items shown");
+                kept.add(item);
+                used += itemSize;
+            }
+            return new Cut(kept, "the first " + kept.size() + " of " + node.size() + " items");
+        }
+        if (node.isObject()) {
+            String biggest = null;
+            long biggestSize = -1;
+            for (var field : node.properties()) {
+                long fieldSize = size(field.getValue());
+                if (fieldSize > biggestSize) {
+                    biggest = field.getKey();
+                    biggestSize = fieldSize;
+                }
+            }
+            if (biggestSize <= max / 2) {
+                // many small fields: the first ones
+                com.fasterxml.jackson.databind.node.ObjectNode kept = Json.MAPPER.createObjectNode();
+                long used = 2;
+                for (var field : node.properties()) {
+                    long fieldSize = field.getKey().length() + 4 + size(field.getValue());
+                    if (used + fieldSize > max) break;
+                    kept.set(field.getKey(), field.getValue());
+                    used += fieldSize;
+                }
+                return new Cut(kept, "the first " + kept.size() + " of " + node.size() + " fields");
+            }
+            com.fasterxml.jackson.databind.node.ObjectNode copy = ((com.fasterxml.jackson.databind.node.ObjectNode) node).deepCopy();
+            long rest = size(node) - biggestSize;
+            Cut inner = cut(node.get(biggest), Math.max(1024, max - rest));
+            copy.set(biggest, inner.node());
+            return new Cut(copy, biggest + ": " + inner.what());
+        }
+        String text = node.asText();
+        int keep = (int) Math.min(text.length(), max);
+        return new Cut(com.fasterxml.jackson.databind.node.TextNode.valueOf(text.substring(0, keep)),
+                "the first " + keep + " of " + text.length() + " characters");
+    }
+
+    // the size of the compact JSON (the text itself for a text body)
+    private static long size(JsonNode node) {
+        return node.isTextual() ? node.asText().length() : Json.write(node).length();
+    }
+
+    private static String mb(long size) {
+        return size >= 1024 * 1024 ? String.format(java.util.Locale.ROOT, "%.1f MB", size / 1024.0 / 1024.0)
+                : String.format(java.util.Locale.ROOT, "%.0f KB", size / 1024.0);
     }
 
     /** Colors the tokens of pretty-printed JSON: keys, strings, numbers, true / false / null. */
