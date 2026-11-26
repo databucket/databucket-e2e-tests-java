@@ -15,11 +15,15 @@ import pl.databucket.e2e.model.Tag;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
 @DisplayName("Settings: tags and icons")
@@ -50,9 +54,10 @@ class SettingsTagsIconsTest {
             Tag tag = settings.tags().create(new Tag().name("new").description("just created")
                     .bucketsIds(Set.of(bucket.id)).classesIds(Set.of(dataClass.id)));
 
-            assertThat(tag.bucketsIds).containsExactly(bucket.id);
-            assertThat(tag.classesIds).containsExactly(dataClass.id);
-            assertThat(settings.tags().list()).extracting(t -> t.description).containsExactly("just created");
+            verifyAll(v -> v
+                    .that("bucketsIds", List.copyOf(tag.bucketsIds), List.of(bucket.id))
+                    .that("classesIds", List.copyOf(tag.classesIds), List.of(dataClass.id)));
+            verify("descriptions", settings.tags().list().stream().map(t -> t.description).toList(), List.of("just created"));
         }
 
         @Test
@@ -60,8 +65,8 @@ class SettingsTagsIconsTest {
             settings.tags().create(new Tag().name("new"));
             Tag paid = settings.tags().create(new Tag().name("paid"));
 
-            assertThat(settings.tags().tryCreate(new Tag().name("new")).status()).isEqualTo(406);
-            assertThat(settings.tags().tryUpdate(paid.name("new")).status()).isEqualTo(406);
+            verify("status", settings.tags().tryCreate(new Tag().name("new")).status(), 406);
+            verify("status", settings.tags().tryUpdate(paid.name("new")).status(), 406);
         }
 
         @Test
@@ -73,8 +78,8 @@ class SettingsTagsIconsTest {
 
             settings.tags().update(tag.name("fresh"));
 
-            assertThat(orders.get(id).map(DataRow::tagId)).contains(tag.id);
-            assertThat(settings.tags().list()).extracting(t -> t.name).containsExactly("fresh");
+            check("the row keeps the tag", () -> assertThat(orders.get(id).map(DataRow::tagId)).contains(tag.id));
+            verify("tag names", settings.tags().list().stream().map(t -> t.name).toList(), List.of("fresh"));
         }
 
         @Test
@@ -83,7 +88,7 @@ class SettingsTagsIconsTest {
 
             settings.tags().delete(tag.id);
 
-            assertThat(settings.tags().list()).isEmpty();
+            verify("tags", settings.tags().list().size(), 0);
         }
     }
 
@@ -95,12 +100,12 @@ class SettingsTagsIconsTest {
         void creates_changes_and_removes_an_icon(TestProject project) {
             Svg created = settings.icons().create(new Svg().name("flag-pl").structure(FLAG));
 
-            assertThat(created.structure).isEqualTo(FLAG);
+            verify("structure", created.structure, FLAG);
             Svg changed = settings.icons().update(created.name("flag-poland"));
-            assertThat(changed.name).isEqualTo("flag-poland");
+            verify("name", changed.name, "flag-poland");
 
             settings.icons().delete(created.id);
-            assertThat(settings.icons().list()).isEmpty();
+            verify("icons", settings.icons().list().size(), 0);
         }
 
         @Test
@@ -108,9 +113,9 @@ class SettingsTagsIconsTest {
             String withScript = "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
             String withHandler = "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"1\" height=\"1\" onload=\"alert(1)\"/></svg>";
 
-            assertThat(settings.icons().tryCreate(new Svg().name("evil").structure(withScript)).status()).isEqualTo(400);
-            assertThat(settings.icons().tryCreate(new Svg().name("evil2").structure(withHandler)).status()).isEqualTo(400);
-            assertThat(settings.icons().list()).isEmpty();
+            verify("status", settings.icons().tryCreate(new Svg().name("evil").structure(withScript)).status(), 400);
+            verify("status", settings.icons().tryCreate(new Svg().name("evil2").structure(withHandler)).status(), 400);
+            verify("icons", settings.icons().list().size(), 0);
         }
     }
 }
