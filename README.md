@@ -90,8 +90,7 @@ Reports of chosen runs are kept in `reports/<date>/<api|www>/` and open in the b
 it without `--single-file` (many small files; GitHub refuses files over 100 MB, and the single file of a big run with
 traces can get there):
 `build/allure-cli/<version>/bin/allure generate build/allure-results/www --clean -o reports/<date>/www`, then add a row to
-`index.html`. In the API report of 2026-11-26 the five responses of `GET /api/manage/users` (every user of the server, ~59 MB
-each) are replaced by a note (later runs shorten big bodies themselves, see below).
+`index.html`.
 
 ## The report
 

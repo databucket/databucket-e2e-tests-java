@@ -1,1 +1,1 @@
-{"name":"Databucket E2E - API (2026-11-26)","stats":{"failed":0,"broken":0,"skipped":0,"passed":233,"unknown":0,"total":233},"status":"passed","duration":86910,"createdAt":1795709301214,"plugin":"Allure2","meta":{"reportId":"6778f7a0-1815-496b-9664-aaff5ad2856a","singleFile":false}}
+{"name":"Databucket E2E - API (2026-11-26)","stats":{"failed":0,"broken":0,"skipped":0,"passed":233,"unknown":0,"total":233},"status":"passed","duration":88536,"createdAt":1795727101193,"plugin":"Allure2","meta":{"reportId":"51aa75df-2313-4dc5-bab7-894e7728c420","singleFile":false}}
