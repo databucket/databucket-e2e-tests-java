@@ -40,7 +40,7 @@ class McpTasksTest {
     void bucket(TestProject project) {
         bucketId = project.createBucket(BUCKET, true, false);
         // two used orders and an active one
-        project.as(ROBOT).post("/api/bucket/" + BUCKET + "/multi", call().v2().body(arr(
+        project.as(ROBOT).post("/api/bucket/" + BUCKET + "/multi", call().body(arr(
                 obj("properties", obj("number", 1, "status", "used")),
                 obj("properties", obj("number", 2, "status", "used")),
                 obj("properties", obj("number", 3, "status", "active")))).expect(201));

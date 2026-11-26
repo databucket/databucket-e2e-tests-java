@@ -52,7 +52,7 @@ request.
 | `ui/` | GUI tests in Chromium (`@UiSuite`: tag `ui`) |
 | `pages/` | page objects of the GUI, their actions are steps of the report |
 | `support/Api.java` | REST client: every call is an Allure step with the request and the response |
-| `support/Call.java` | options of a call: `call().v2().body(obj(...)).expect(201).name("...")` |
+| `support/Call.java` | options of a call: `call().body(obj(...)).expect(201).name("...")` |
 | `support/Json.java` | `obj(...)` / `arr(...)` for bodies, `response.path("data.properties.customer")` (GPath of REST Assured) |
 | `support/ReportConfig.java` | what the report shows: response headers, masked headers and fields |
 | `support/HttpView.java` | the HTML view of a call in the report |
@@ -62,14 +62,14 @@ A test:
 
 ```java
 @ApiSuite
-@DisplayName("Data API v2")
+@DisplayName("Data API")
 class DataApiTest {
 
     @Test
     void inserts_a_row_and_reads_it_by_id(TestProject project) {
         Api robot = project.as(ROBOT);
 
-        ApiResponse inserted = robot.post("/api/bucket/orders", call().v2()
+        ApiResponse inserted = robot.post("/api/bucket/orders", call()
                 .body(obj("properties", obj("customer", "Alice")))
                 .expect(201));
 

@@ -50,7 +50,7 @@ class JobsTest {
 
     // two used orders and an active one
     private static void insert(TestProject project, String bucket) {
-        project.quietly(ADMIN).post("/api/bucket/" + bucket + "/multi", call().v2().body(arr(
+        project.quietly(ADMIN).post("/api/bucket/" + bucket + "/multi", call().body(arr(
                 obj("properties", obj("number", 1, "status", "used")),
                 obj("properties", obj("number", 2, "status", "used")),
                 obj("properties", obj("number", 3, "status", "active")))).expect(201));
@@ -75,7 +75,7 @@ class JobsTest {
     }
 
     private static int total(TestProject project, String bucket) {
-        return project.quietly(ADMIN).post("/api/bucket/" + bucket + "/get?limit=0", call().v2().body(obj()).expect(200))
+        return project.quietly(ADMIN).post("/api/bucket/" + bucket + "/get?limit=0", call().body(obj()).expect(200))
                 .<Integer>path("total");
     }
 

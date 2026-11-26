@@ -31,7 +31,7 @@ class BucketDataGridTest {
     void data(TestProject project) {
         long bucketId = project.createBucket(BUCKET);
         project.createView(bucketId, "all orders", obj("customer", "Customer", "status", "Status"));
-        project.quietly(ROBOT).post("/api/bucket/" + BUCKET + "/multi", call().v2().body(arr(
+        project.quietly(ROBOT).post("/api/bucket/" + BUCKET + "/multi", call().body(arr(
                 obj("properties", obj("customer", "Alice", "status", "NEW")),
                 obj("properties", obj("customer", "Bob", "status", "PAID")),
                 obj("properties", obj("customer", "Carol", "status", "NEW"))
@@ -74,7 +74,7 @@ class BucketDataGridTest {
         assertThat(ui.row("Dave")).isVisible();
         screenshot(page, "row added");
         Api member = project.as(MEMBER);
-        ApiResponse found = member.post("/api/bucket/" + BUCKET + "/get?limit=10", call().v2()
+        ApiResponse found = member.post("/api/bucket/" + BUCKET + "/get?limit=10", call()
                 .body(obj("logic", obj("==", arr(obj("var", "$.customer"), "Dave"))))
                 .expect(200));
         assertThat(found.<List<?>>path("data")).hasSize(1);
