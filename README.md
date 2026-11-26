@@ -87,10 +87,11 @@ Test names come from the method names (`_` → space); `@DisplayName` for names 
 
 Reports of chosen runs are kept in `reports/<date>/<api|www>/` and open in the browser at
 **https://databucket.github.io/databucket-e2e-tests-java/** (GitHub Pages; `index.html` lists them). To add one, generate
-it without `--single-file` (the single file of a GUI run is over GitHub's 100 MB limit):
+it without `--single-file` (many small files; GitHub refuses files over 100 MB, and the single file of a big run with
+traces can get there):
 `build/allure-cli/<version>/bin/allure generate build/allure-results/www --clean -o reports/<date>/www`, then add a row to
 `index.html`. In the API report of 2026-11-26 the five responses of `GET /api/manage/users` (every user of the server, ~59 MB
-each) are replaced by a note.
+each) are replaced by a note (later runs shorten big bodies themselves, see below).
 
 ## The report
 
@@ -106,8 +107,11 @@ Access, MCP, Fixed bugs) > class (`@DisplayName`) > test.
 - GUI tests: the actions of the page objects are steps ("Open bucket orders", "Search \"Bob\"", written with
   `Screenshots.step`), each with a screenshot of the page when it ends (also when it fails); a verification of the GUI
   has a screenshot under its checks; `Screenshots.screenshot("menu")` adds one more inside a step (e.g. of an open
-  menu). At the end of the test: the Playwright trace (download it and open it at https://trace.playwright.dev) and a
-  video of the failed ones.
+  menu). Screenshots are JPEG (`-PscreenshotQuality=80`). Of a failed test, at its end: the Playwright trace (download
+  it and open it at https://trace.playwright.dev; of every test with `-Ptrace=always`, ~3 MB each) and a video.
+- A request or response body over 256 KB of JSON (`-PmaxBodyKb=256`, 0 = no limit) is shortened in its view: the first
+  items of a list, the start of a text; the Body line says what was left out, e.g. "shortened: 12.3 MB, the first 894
+  of 43676 items".
 - Every test project has two icons of Databucket (Settings > Icons): `databucket-outlined`, the icon of the buckets
   made by `TestProject.createBucket`, and `databucket-filled` (`support/DatabucketIcons`).
 

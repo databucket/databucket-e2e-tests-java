@@ -85,24 +85,26 @@ public final class Screenshots {
 
     /** Adds a screenshot of the page to a step already made (a verification); nothing without a page. */
     static void attachTo(StepResult step, String name) {
-        byte[] png = capture();
-        if (png == null) return;
-        String source = UUID.randomUUID() + "-attachment.png";
-        Allure.getLifecycle().writeAttachment(source, new ByteArrayInputStream(png));
-        step.getAttachments().add(new Attachment().setName(name).setType("image/png").setSource(source));
+        byte[] jpeg = capture();
+        if (jpeg == null) return;
+        String source = UUID.randomUUID() + "-attachment.jpg";
+        Allure.getLifecycle().writeAttachment(source, new ByteArrayInputStream(jpeg));
+        step.getAttachments().add(new Attachment().setName(name).setType("image/jpeg").setSource(source));
     }
 
     private static void attachHere(String name) {
-        byte[] png = capture();
-        if (png != null) Allure.addAttachment(name, "image/png", new ByteArrayInputStream(png), ".png");
+        byte[] jpeg = capture();
+        if (jpeg != null) Allure.addAttachment(name, "image/jpeg", new ByteArrayInputStream(jpeg), ".jpg");
     }
 
     private static byte[] capture() {
         Page page = PAGE.get();
         if (page == null || page.isClosed()) return null;
         try {
-            // without the tooltip of the button just clicked (the mouse stays over it), which covers the page
-            return page.screenshot(new Page.ScreenshotOptions().setStyle(HIDDEN));
+            // without the tooltip of the button just clicked (the mouse stays over it), which covers the page; JPEG:
+            // several times smaller than PNG (ReportConfig.SCREENSHOT_QUALITY)
+            return page.screenshot(new Page.ScreenshotOptions().setStyle(HIDDEN)
+                    .setType(com.microsoft.playwright.options.ScreenshotType.JPEG).setQuality(ReportConfig.SCREENSHOT_QUALITY));
         } catch (RuntimeException e) {
             // a screenshot must not hide what the step did (e.g. the page is navigating)
             return null;

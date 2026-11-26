@@ -25,8 +25,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Databucket URL as base URL. Playwright isn't thread-safe, so every thread running tests has its own Playwright and
  * browser, closed when the tests are over.
  * <p>
- * In the report: screenshots in the steps ({@link Screenshots}), the Playwright trace of every test (open it at
- * https://trace.playwright.dev or with {@code npx playwright show-trace}), a video of the failed ones.
+ * In the report: screenshots in the steps ({@link Screenshots}); of the failed tests the Playwright trace (open it at
+ * https://trace.playwright.dev or with {@code npx playwright show-trace}; of every test with {@link ReportConfig#TRACE}
+ * "always") and a video.
  */
 public final class BrowserExtension implements ParameterResolver, AfterEachCallback {
 
@@ -84,7 +85,8 @@ public final class BrowserExtension implements ParameterResolver, AfterEachCallb
 
         Path trace = Files.createTempFile("e2e-trace", ".zip");
         browserContext.tracing().stop(new Tracing.StopOptions().setPath(trace));
-        attach("trace", "application/zip", ".zip", trace);
+        if (ReportConfig.TRACE.equals("always") || (failed && !ReportConfig.TRACE.equals("never")))
+            attach("trace", "application/zip", ".zip", trace);
 
         // the video is written when the context is closed
         Path video = page.video() != null ? page.video().path() : null;
