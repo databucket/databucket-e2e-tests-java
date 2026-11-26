@@ -13,6 +13,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
 @DisplayName("Paging and sorting")
@@ -46,13 +49,14 @@ class PagingSortingTest {
         DataPage<Item> second = items.find(Search.all().limit(2).page(2));
         DataPage<Item> last = items.find(Search.all().limit(2).page(3));
 
-        assertThat(names(first)).containsExactly("pear", "Apple");
-        assertThat(names(second)).containsExactly("cherry", "banana");
-        assertThat(names(last)).containsExactly("date");
-        assertThat(first.total()).isEqualTo(5);
-        assertThat(first.totalPages()).isEqualTo(3);
-        assertThat(first.page()).isEqualTo(1);
-        assertThat(first.limit()).isEqualTo(2);
+        verifyAll(v -> v
+                .that("first: names", names(first), List.of("pear", "Apple"))
+                .that("second: names", names(second), List.of("cherry", "banana"))
+                .that("last: names", names(last), List.of("date"))
+                .that("first: total", first.total(), 5)
+                .that("first: totalPages", first.totalPages(), 3)
+                .that("first: page", first.page(), 1)
+                .that("first: limit", first.limit(), 2));
     }
 
     @Test
@@ -61,15 +65,16 @@ class PagingSortingTest {
         DataPage<Item> one = items.find(Search.all());
         DataPage<Item> beyond = items.find(Search.all().limit(2).page(9));
 
-        assertThat(one.rows()).hasSize(1);
-        assertThat(one.total()).isEqualTo(5);
-        assertThat(beyond.rows()).isEmpty();
+        verifyAll(v -> v
+                .that("one: rows: size", one.rows().size(), 1)
+                .that("one: total", one.total(), 5)
+                .that("beyond: rows: size", beyond.rows().size(), 0));
     }
 
     @Test
     void sorts_by_id_descending(TestProject project) {
-        assertThat(names(items.find(Search.all().limit(10).sort("desc(id)"))))
-                .containsExactly("date", "banana", "cherry", "Apple", "pear");
+        List<String> names = names(items.find(Search.all().limit(10).sort("desc(id)")));
+        verify("names", names, List.of("date", "banana", "cherry", "Apple", "pear"));
     }
 
     @Test
@@ -77,7 +82,7 @@ class PagingSortingTest {
     void numbers(TestProject project) {
         DataPage<Item> page = items.find(Search.all().limit(10).sort("desc($.rank)"));
 
-        assertThat(page.properties()).extracting(Item::rank).containsExactly(100, 55, 10, 9, 1);
+        verify("ranks", page.properties().stream().map(Item::rank).toList(), List.of(100, 55, 10, 9, 1));
     }
 
     @Test
@@ -85,14 +90,17 @@ class PagingSortingTest {
         List<String> sorted = names(items.find(Search.all().limit(10).sort("asc($.name)")));
 
         // whatever the collation does with upper case, the lower-case names are in order
-        assertThat(sorted.stream().filter(name -> !name.equals("Apple")).toList()).containsExactly("banana", "cherry", "date", "pear");
-        assertThat(sorted).hasSize(5);
+        verifyAll(v -> v
+                .that("lower-case names", sorted.stream().filter(name -> !name.equals("Apple")).toList(),
+                        List.of("banana", "cherry", "date", "pear"))
+                .that("names: size", sorted.size(), 5));
     }
 
     @Test
     void random_order_returns_every_row_once(TestProject project) {
-        assertThat(names(items.find(Search.all().limit(10).sort("random"))))
-                .containsExactlyInAnyOrderElementsOf(ITEMS.stream().map(Item::name).toList());
+        List<String> names = names(items.find(Search.all().limit(10).sort("random")));
+        check("every row once", () -> assertThat(names)
+                .containsExactlyInAnyOrderElementsOf(ITEMS.stream().map(Item::name).toList()));
     }
 
     @Test
@@ -100,13 +108,15 @@ class PagingSortingTest {
     void without_count(TestProject project) {
         DataPage<Item> page = items.find(Search.all().limit(2).count(false));
 
-        assertThat(names(page)).containsExactly("pear", "Apple");
-        assertThat(page.total()).isNull();
-        assertThat(page.totalPages()).isNull();
+        verifyAll(v -> v
+                .that("names", names(page), List.of("pear", "Apple"))
+                .check("total: null", () -> assertThat(page.total()).isNull())
+                .check("totalPages: null", () -> assertThat(page.totalPages()).isNull()));
     }
 
     @Test
     void an_unknown_sort_field_is_refused(TestProject project) {
-        assertThat(items.tryFind(Search.all().sort("desc(password)")).status()).isEqualTo(400);
+        int status = items.tryFind(Search.all().sort("desc(password)")).status();
+        verify("status", status, 400);
     }
 }

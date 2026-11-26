@@ -18,6 +18,9 @@ import static pl.databucket.e2e.support.Json.arr;
 import static pl.databucket.e2e.support.Json.obj;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** The MCP server for AI agents (/mcp, stateless streamable HTTP): JSON-RPC calls with the user's token. */
 @ApiSuite
@@ -64,13 +67,14 @@ class McpServerTest {
                 "protocolVersion", "2025-06-18",
                 "capabilities", obj(),
                 "clientInfo", obj("name", "e2e", "version", "1")));
-        assertThat(init.<String>path("result.serverInfo.name")).isEqualTo("databucket");
-        assertThat(init.<String>path("result.instructions")).contains("list_buckets");
+        verifyAll(v -> v
+                .that("serverInfo.name", init.<String>path("result.serverInfo.name"), "databucket")
+                .check("instructions mention list_buckets", () -> assertThat(init.<String>path("result.instructions")).contains("list_buckets")));
 
         ApiResponse tools = rpc(agent, "tools/list", obj());
-        assertThat(tools.<List<String>>path("result.tools.name")).containsExactlyInAnyOrder(
+        check("tools", () -> assertThat(tools.<List<String>>path("result.tools.name")).containsExactlyInAnyOrder(
                 "create_bucket", "delete_data", "describe_bucket", "find_data", "generate_data", "get_activity", "get_data", "insert_data", "list_buckets",
-                "release_data", "reserve_data", "run_jobs", "run_task", "search_history", "update_data");
+                "release_data", "reserve_data", "run_jobs", "run_task", "search_history", "update_data"));
     }
 
     @Test
@@ -81,7 +85,7 @@ class McpServerTest {
                 .header("Accept", MCP_ACCEPT)
                 .body(obj("jsonrpc", "2.0", "id", 1, "method", "tools/list")));
 
-        assertThat(response.status()).isEqualTo(401);
+        verify("status", response.status(), 401);
     }
 
     @Test
@@ -90,36 +94,41 @@ class McpServerTest {
         Api agent = project.as(AGENT);
 
         ToolResult buckets = callTool(agent, "list_buckets", obj());
-        assertThat(buckets.<List<String>>path("name")).contains(BUCKET);
+        check("buckets contain " + BUCKET, () -> assertThat(buckets.<List<String>>path("name")).contains(BUCKET));
 
         ToolResult inserted = callTool(agent, "insert_data", obj("bucket", BUCKET, "rows", arr(
                 obj("properties", obj("login", "alice", "status", "active")),
                 obj("properties", obj("login", "bob", "status", "active")),
                 obj("properties", obj("login", "carol", "status", "blocked")))));
-        assertThat(inserted.isError()).isFalse();
-        assertThat(inserted.<List<?>>path("$")).hasSize(3);
+        verifyAll(v -> v
+                .that("isError", inserted.isError(), false)
+                .that("rows: size", inserted.<List<?>>path("$").size(), 3));
 
         ToolResult active = callTool(agent, "find_data", obj("bucket", BUCKET,
                 "rules", arr(arr("$.status", "==", "active")), "sort", "asc($.login)"));
-        assertThat(active.<Integer>path("total")).isEqualTo(2);
-        assertThat(active.<List<String>>path("data.properties.login")).containsExactly("alice", "bob");
+        verifyAll(v -> v
+                .that("total", active.<Integer>path("total"), 2)
+                .that("logins", active.<List<String>>path("data.properties.login"), List.of("alice", "bob")));
 
         ToolResult reserved = callTool(agent, "reserve_data", obj("bucket", BUCKET, "rules", arr(arr("$.status", "==", "active"))));
-        assertThat(reserved.<Integer>path("reserved")).isEqualTo(1);
-        assertThat(reserved.<Integer>path("available")).isEqualTo(1);
         Number rowId = reserved.path("data[0].id");
-        assertThat(reserved.<String>path("data[0].owner")).isEqualTo(project.user(AGENT).username());
+        verifyAll(v -> v
+                .that("reserved", reserved.<Integer>path("reserved"), 1)
+                .that("available", reserved.<Integer>path("available"), 1)
+                .that("data[0].owner", reserved.<String>path("data[0].owner"), project.user(AGENT).username()));
 
         ToolResult updated = callTool(agent, "update_data", obj("bucket", BUCKET, "ids", arr(rowId), "propertiesToSet", obj("$.status", "used")));
-        assertThat(updated.<Integer>path("count")).isEqualTo(1);
+        verify("count", updated.<Integer>path("count"), 1);
 
         ToolResult released = callTool(agent, "release_data", obj("bucket", BUCKET, "ids", arr(rowId)));
-        assertThat(released.<Integer>path("count")).isEqualTo(1);
+        verify("count", released.<Integer>path("count"), 1);
 
         ToolResult history = callTool(agent, "search_history", obj("bucket", BUCKET, "rules", arr(arr("id", "==", rowId)), "properties", true));
         // inserted, reserved, changed, released
-        assertThat(history.<Integer>path("total")).isEqualTo(4);
-        assertThat(history.<List<String>>path("history.modifiedBy")).containsOnly(project.user(AGENT).username());
+        verifyAll(v -> v
+                .that("total", history.<Integer>path("total"), 4)
+                .check("modifiedBy: only the agent", () -> assertThat(history.<List<String>>path("history.modifiedBy"))
+                        .containsOnly(project.user(AGENT).username())));
     }
 
     @Test
@@ -131,13 +140,14 @@ class McpServerTest {
         Number rowId = row.path("id");
 
         ToolResult byAgent = callTool(agent, "delete_data", obj("bucket", BUCKET, "ids", arr(rowId)));
-        assertThat(byAgent.isError()).isTrue();
-        assertThat(byAgent.text()).contains("ROBOT role");
+        verifyAll(v -> v
+                .that("isError", byAgent.isError(), true)
+                .check("message names the ROBOT role", () -> assertThat(byAgent.text()).contains("ROBOT role")));
         // the REST API refuses it too
         agent.delete("/api/bucket/" + BUCKET + "/" + rowId, call().expect(403));
 
         ToolResult byRobot = callTool(robot, "delete_data", obj("bucket", BUCKET, "ids", arr(rowId)));
-        assertThat(byRobot.<Integer>path("count")).isEqualTo(1);
+        verify("count", byRobot.<Integer>path("count"), 1);
     }
 
     @Test
@@ -148,13 +158,14 @@ class McpServerTest {
         ToolResult inserted = callTool(agent, "insert_data", obj("bucket", "secrets", "rows", arr(
                 obj("properties", obj("login", "free")),
                 obj("properties", obj("login", "mine"), "reserved", true))));
-        assertThat(inserted.isError()).isFalse();
-        assertThat(inserted.<List<String>>path("properties.login")).containsExactly("free", "mine");
-        assertThat(inserted.<List<Boolean>>path("reserved")).containsExactly(false, true);
+        verifyAll(v -> v
+                .that("isError", inserted.isError(), false)
+                .that("logins", inserted.<List<String>>path("properties.login"), List.of("free", "mine"))
+                .that("reserved", inserted.<List<Boolean>>path("reserved"), List.of(false, true)));
 
         // afterwards the agent sees only its own row
         ToolResult found = callTool(agent, "find_data", obj("bucket", "secrets"));
-        assertThat(found.<List<String>>path("data.properties.login")).containsExactly("mine");
+        verify("logins", found.<List<String>>path("data.properties.login"), List.of("mine"));
     }
 
     @Test
@@ -162,18 +173,21 @@ class McpServerTest {
         Api agent = project.as(AGENT);
 
         ToolResult unknownBucket = callTool(agent, "find_data", obj("bucket", "no-such-bucket"));
-        assertThat(unknownBucket.isError()).isTrue();
-        assertThat(unknownBucket.text()).contains("list_buckets");
+        verifyAll(v -> v
+                .that("unknown bucket: isError", unknownBucket.isError(), true)
+                .check("unknown bucket: points to list_buckets", () -> assertThat(unknownBucket.text()).contains("list_buckets")));
 
         ToolResult sqlRule = callTool(agent, "find_data", obj("bucket", BUCKET, "rules", arr("properties->>'a' = '1'")));
-        assertThat(sqlRule.isError()).isTrue();
-        assertThat(sqlRule.text()).contains("[left, operator, right]");
+        verifyAll(v -> v
+                .that("SQL rule: isError", sqlRule.isError(), true)
+                .check("SQL rule: explains the rule format", () -> assertThat(sqlRule.text()).contains("[left, operator, right]")));
 
         ToolResult unknownTag = callTool(agent, "insert_data", obj("bucket", BUCKET, "rows", arr(obj("properties", obj("a", 1), "tagId", 999999))));
-        assertThat(unknownTag.isError()).isTrue();
-        assertThat(unknownTag.text()).contains("describe_bucket");
+        verifyAll(v -> v
+                .that("unknown tag: isError", unknownTag.isError(), true)
+                .check("unknown tag: points to describe_bucket", () -> assertThat(unknownTag.text()).contains("describe_bucket")));
 
         ToolResult nothing = callTool(agent, "find_data", obj("bucket", BUCKET, "limit", 0));
-        assertThat(nothing.<Integer>path("total")).isEqualTo(0);
+        verify("total", nothing.<Integer>path("total"), 0);
     }
 }
