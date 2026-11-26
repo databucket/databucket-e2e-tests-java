@@ -146,6 +146,7 @@ public final class Api {
         ApiResponse result = new ApiResponse(response.getStatusCode(), responseHeaders, text);
 
         if (step != null) {
+            Verify.callStarted();
             step.name(method + " " + path + " → " + result.status());
             JsonNode requestJson = body == null ? null : Json.parseOrNull(body);
             JsonNode responseJson = Json.parseOrNull(text);
@@ -159,7 +160,14 @@ public final class Api {
                     took,
                     maskHeaders(shown(responseHeaders)),
                     responseJson != null ? mask(responseJson) : text.isEmpty() ? null : TextNode.valueOf(text)));
-            Allure.addAttachment(options.name != null ? options.name : "request / response", "text/html", view, ".html");
+            // Allure shows the sub-steps before the attachments: the request / response in a step of its own, so that
+            // a verification of the call (Verify) comes after it
+            String attachment = options.name != null ? options.name : "request / response";
+            Allure.step(attachment, () -> Allure.addAttachment(attachment, "text/html", view, ".html"));
+        }
+        if (!options.checks.isEmpty()) {
+            ResponseChecks.verify(result, options.expectStatus, options.checks, step != null);
+            return result;
         }
         if (options.expectStatus != null && result.status() != options.expectStatus)
             throw new AssertionError(method + " " + path + ": expected status " + options.expectStatus + ", got "

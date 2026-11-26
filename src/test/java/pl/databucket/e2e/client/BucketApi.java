@@ -99,6 +99,14 @@ public final class BucketApi<T> {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
+    /**
+     * The row, checked against the expected properties in the step of the request: each field is a check of the
+     * report (a null field is not checked); fails when the row doesn't exist or any field differs.
+     */
+    public DataRow<T> get(long id, T expected) {
+        return api.get(path + "/" + id, call().expect(200).verify("properties", expected)).as(rowType());
+    }
+
     /** The rows with these ids (those that don't exist are skipped). */
     public List<DataRow<T>> getAll(long... ids) {
         ApiResponse response = api.get(path + "/" + ids(ids), call().expect(200));

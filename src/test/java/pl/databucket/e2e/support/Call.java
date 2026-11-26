@@ -1,6 +1,8 @@
 package pl.databucket.e2e.support;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -12,6 +14,7 @@ public final class Call {
     final Map<String, String> headers = new LinkedHashMap<>();
     Integer expectStatus;
     String name;
+    final List<ResponseChecks.Check> checks = new ArrayList<>();
 
     private Call() {
     }
@@ -34,6 +37,21 @@ public final class Call {
     /** Fail the call when the status differs. */
     public Call expect(int status) {
         this.expectStatus = status;
+        return this;
+    }
+
+    /**
+     * Soft checks of the response against an object of the model, made in the step of the call: one check per field
+     * (nested fields and list items too; a null field is not checked). All checks (and the status of
+     * {@link #expect}) are steps of the report with their result; the call fails at the end when any of them failed.
+     */
+    public Call verify(Object expected) {
+        return verify("", expected);
+    }
+
+    /** As {@link #verify(Object)}, for the part of the response at the path, e.g. {@code verify("properties", order)}. */
+    public Call verify(String path, Object expected) {
+        checks.add(new ResponseChecks.Check(path, expected));
         return this;
     }
 

@@ -30,6 +30,7 @@ Then, in this repository (Gradle downloads everything, Chromium included):
 | `-PbaseUrl=http://localhost:8080` or `BASE_URL=...` | another Databucket |
 | `-PsuperUser=... -PsuperPassword=...` or `SUPER_USER`, `SUPER_PASSWORD` | its SUPER admin |
 | `-Pheaded=true` | see the browser |
+| `-PshowPassedChecks=false` or `SHOW_PASSED_CHECKS=false` | the checks of a response show only the failed ones (all by default, `ReportConfig.SHOW_PASSED_CHECKS`) |
 | `--tests '*DataApiTest*'` | some tests only |
 
 ## How the tests are isolated and run in parallel

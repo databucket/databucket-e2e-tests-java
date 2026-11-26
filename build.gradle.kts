@@ -46,7 +46,7 @@ val threads = providers.gradleProperty("threads")
 
 // Databucket under test: -PbaseUrl=... -PsuperUser=... -PsuperPassword=... or the environment variables
 // BASE_URL, SUPER_USER, SUPER_PASSWORD; the docker compose of databucket-server (super / super) by default
-val settings = listOf("baseUrl", "superUser", "superPassword", "headed")
+val settings = listOf("baseUrl", "superUser", "superPassword", "headed", "showPassedChecks")
 
 // Chromium for the GUI tests (once; quick when already installed)
 val installBrowsers = tasks.register<JavaExec>("installBrowsers") {

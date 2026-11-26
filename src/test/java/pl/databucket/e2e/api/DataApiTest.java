@@ -20,6 +20,9 @@ import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
 import static pl.databucket.e2e.support.Call.call;
 import static pl.databucket.e2e.support.Json.obj;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
 @DisplayName("Data API")
@@ -47,13 +50,15 @@ class DataApiTest {
         BucketApi<Order> orders = project.as(ROBOT).bucket(BUCKET, Order.class);
 
         DataRow<Order> inserted = orders.insert(new Order("Alice", "NEW", 120.5));
-        assertThat(inserted.properties()).isEqualTo(new Order("Alice", "NEW", 120.5));
-        assertThat(inserted.reserved()).isFalse();
+        verifyAll(v -> v
+                .that("properties", inserted.properties(), new Order("Alice", "NEW", 120.5))
+                .that("reserved", inserted.reserved(), false));
 
         DataRow<Order> read = orders.get(inserted.id()).orElseThrow();
-        assertThat(read.id()).isEqualTo(inserted.id());
-        assertThat(read.properties().customer()).isEqualTo("Alice");
-        assertThat(read.createdBy()).isEqualTo(project.user(ROBOT).username());
+        verifyAll(v -> v
+                .that("id", read.id(), inserted.id())
+                .that("properties.customer", read.properties().customer(), "Alice")
+                .that("createdBy", read.createdBy(), project.user(ROBOT).username()));
     }
 
     @Test
@@ -63,11 +68,12 @@ class DataApiTest {
         BucketApi<Login> secrets = project.as(MEMBER).bucket("secrets", Login.class);
 
         DataRow<Login> inserted = secrets.insert(new Login("erin"));
-        assertThat(inserted.reserved()).isFalse();
-        assertThat(inserted.properties().login()).isEqualTo("erin");
+        verifyAll(v -> v
+                .that("reserved", inserted.reserved(), false)
+                .that("properties.login", inserted.properties().login(), "erin"));
 
         // not reserved by the member, so hidden from them afterwards (as an id that doesn't exist: no rows)
-        assertThat(secrets.get(inserted.id())).isEmpty();
+        check("the row is not found", () -> assertThat(secrets.get(inserted.id())).isEmpty());
     }
 
     @Test
@@ -77,11 +83,12 @@ class DataApiTest {
         orders.insertAll(new Order("Alice", "NEW", 10.0), new Order("Bob", "PAID", 20.0),
                 new Order("Carol", "NEW", 30.0), new Order("Dave", "NEW", 40.0));
 
-        assertThat(orders.count(Search.all().logic(logic("==", var("$.status"), "NEW")))).isEqualTo(3);
+        long count = orders.count(Search.all().logic(logic("==", var("$.status"), "NEW")));
+        verify("count", count, 3);
 
         DataPage<Order> page = orders.find(Search.all().logic(logic("==", var("$.status"), "NEW"))
                 .limit(2).page(1).sort("desc($.total)"));
-        assertThat(page.properties()).extracting(Order::customer).containsExactly("Dave", "Carol");
+        verify("customers", page.properties().stream().map(Order::customer).toList(), java.util.List.of("Dave", "Carol"));
     }
 
     @Test
@@ -93,12 +100,14 @@ class DataApiTest {
         Reservation<Order> second = orders.reserve(Search.all().limit(5));
         Reservation<Order> third = orders.reserve(Search.all().limit(1));
 
-        assertThat(first.rows()).hasSize(1);
-        assertThat(second.rows()).hasSize(1);
-        assertThat(second.ids()).doesNotContainAnyElementsOf(first.ids());
-        assertThat(first.rows()).extracting(DataRow::reserved).containsOnly(true);
-        assertThat(second.rows()).extracting(DataRow::owner).containsOnly(project.user(ROBOT).username());
-        assertThat(third.rows()).isEmpty();
+        verifyAll(v -> v
+                .that("first: rows", first.rows().size(), 1)
+                .that("second: rows", second.rows().size(), 1)
+                .check("second: other rows than the first", () -> assertThat(second.ids()).doesNotContainAnyElementsOf(first.ids()))
+                .check("first: reserved", () -> assertThat(first.rows()).extracting(DataRow::reserved).containsOnly(true))
+                .check("second: owned by the robot", () -> assertThat(second.rows()).extracting(DataRow::owner)
+                        .containsOnly(project.user(ROBOT).username()))
+                .that("third: rows", third.rows().size(), 0));
     }
 
     @Test
@@ -108,11 +117,11 @@ class DataApiTest {
         long id = orders.insert(new Order("Alice", "NEW")).id();
 
         orders.update(Change.set("$.status", "PAID"), id);
-        assertThat(orders.get(id).orElseThrow().properties()).isEqualTo(new Order("Alice", "PAID"));
+        orders.get(id, new Order("Alice", "PAID"));
 
         orders.delete(id);
         // a row that doesn't exist (any more) comes back as an empty list
-        assertThat(orders.get(id)).isEmpty();
+        check("the row is not found", () -> assertThat(orders.get(id)).isEmpty());
     }
 
     @Test
@@ -123,11 +132,11 @@ class DataApiTest {
 
         project.as(MEMBER).put("/api/bucket/" + BUCKET + "/" + id,
                 call().body(obj("propertiesToSet", obj("$.status", "PAID"))).expect(200));
-        assertThat(orders.get(id).orElseThrow().properties()).isEqualTo(new Order("Alice", "PAID"));
+        orders.get(id, new Order("Alice", "PAID"));
 
         project.as(MEMBER).put("/api/bucket/" + BUCKET,
                 call().body(obj("propertiesToSet", obj("$.status", "SHIPPED"), "rules", java.util.List.of(java.util.List.of("id", "==", id))))
                         .expect(200));
-        assertThat(orders.get(id).orElseThrow().properties()).isEqualTo(new Order("Alice", "SHIPPED"));
+        orders.get(id, new Order("Alice", "SHIPPED"));
     }
 }
