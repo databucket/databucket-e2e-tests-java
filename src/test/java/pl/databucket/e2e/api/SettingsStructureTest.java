@@ -22,6 +22,7 @@ import pl.databucket.e2e.model.Task;
 import pl.databucket.e2e.model.TaskConfig;
 import pl.databucket.e2e.model.View;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Role;
 import pl.databucket.e2e.support.TestProject;
@@ -41,6 +42,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** Settings that describe the data: classes, enums, columns, filters, tasks. */
 @ApiSuite
+@Area(Area.SETTINGS)
 @DisplayName("Settings: classes, enums, columns, filters, tasks")
 class SettingsStructureTest {
 

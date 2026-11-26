@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import pl.databucket.e2e.support.Api;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Json;
 import pl.databucket.e2e.support.TestProject;
@@ -24,6 +25,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** The MCP server for AI agents (/mcp, stateless streamable HTTP): JSON-RPC calls with the user's token. */
 @ApiSuite
+@Area(Area.MCP)
 @DisplayName("MCP server")
 class McpServerTest {
 

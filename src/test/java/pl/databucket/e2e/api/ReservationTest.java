@@ -10,6 +10,7 @@ import pl.databucket.e2e.client.Search;
 import pl.databucket.e2e.model.DataRow;
 import pl.databucket.e2e.model.Message;
 import pl.databucket.e2e.model.Reservation;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -33,6 +34,7 @@ import static pl.databucket.e2e.support.Verify.verify;
 import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("Reservation")
 class ReservationTest {
 

@@ -9,6 +9,7 @@ import pl.databucket.e2e.model.FilterConfig;
 import pl.databucket.e2e.model.Task;
 import pl.databucket.e2e.model.TaskConfig;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Role;
 import pl.databucket.e2e.support.TestProject;
@@ -35,6 +36,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
  * one call (REST POST /api/task-schedules/run, MCP run_jobs) as the caller, and Run as the caller.
  */
 @ApiSuite
+@Area(Area.SETTINGS)
 @DisplayName("Jobs: running by keyword")
 class JobsTest {
 

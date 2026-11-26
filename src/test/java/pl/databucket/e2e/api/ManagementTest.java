@@ -17,6 +17,7 @@ import pl.databucket.e2e.model.SignIn;
 import pl.databucket.e2e.model.Tag;
 import pl.databucket.e2e.support.Api;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Env;
 import pl.databucket.e2e.support.Role;
@@ -41,6 +42,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** The management of all projects and users (SUPER). Projects made here are removed, users disabled. */
 @ApiSuite
+@Area(Area.MANAGEMENT)
 @DisplayName("Management")
 class ManagementTest {
 

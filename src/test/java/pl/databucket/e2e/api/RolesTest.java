@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import pl.databucket.e2e.model.Bucket;
 import pl.databucket.e2e.model.Icon;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Role;
 import pl.databucket.e2e.support.TestProject;
@@ -16,6 +17,7 @@ import static pl.databucket.e2e.support.Verify.check;
 import static pl.databucket.e2e.support.Verify.verify;
 
 @ApiSuite
+@Area(Area.ACCESS)
 @DisplayName("Roles")
 class RolesTest {
 

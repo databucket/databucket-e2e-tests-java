@@ -17,6 +17,7 @@ import pl.databucket.e2e.model.ManagedUser;
 import pl.databucket.e2e.model.View;
 import pl.databucket.e2e.support.Api;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Role;
 import pl.databucket.e2e.support.TestProject;
@@ -39,6 +40,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
  * The comment of each test says how it was before.
  */
 @ApiSuite
+@Area(Area.FIXED_BUGS)
 @DisplayName("Fixed in 3.19.0")
 class FixedIn3190Test {
 

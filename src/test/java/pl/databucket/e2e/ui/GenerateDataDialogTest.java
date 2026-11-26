@@ -10,6 +10,7 @@ import pl.databucket.e2e.model.DataRow;
 import pl.databucket.e2e.pages.GenerateDataDialog;
 import pl.databucket.e2e.pages.ProjectPage;
 import pl.databucket.e2e.support.TestProject;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.UiSuite;
 
 import java.util.List;
@@ -28,6 +29,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** The dialog "Generate data" of the data grid (Databucket 3.20.0+). */
 @UiSuite
+@Area(Area.DATA)
 @DisplayName("Generate data dialog")
 @SuppressWarnings({"rawtypes", "unchecked"})
 class GenerateDataDialogTest {

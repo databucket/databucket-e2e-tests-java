@@ -60,6 +60,8 @@ val installBrowsers = tasks.register<JavaExec>("installBrowsers") {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     defaultCharacterEncoding = "UTF-8"
+    // the default 512 MB ran out once in a full run (the results with their attachments are kept until written)
+    maxHeapSize = "1g"
     dependsOn(installBrowsers)
     systemProperty("allure.results.directory", allureResults.get().asFile.absolutePath)
     systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", threads.get())

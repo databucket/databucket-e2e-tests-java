@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import pl.databucket.e2e.client.BucketApi;
 import pl.databucket.e2e.client.Search;
 import pl.databucket.e2e.model.DataPage;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -18,6 +19,7 @@ import static pl.databucket.e2e.support.Verify.verify;
 import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("Paging and sorting")
 class PagingSortingTest {
 

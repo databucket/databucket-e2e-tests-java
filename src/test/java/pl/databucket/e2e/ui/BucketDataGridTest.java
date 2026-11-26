@@ -8,6 +8,7 @@ import pl.databucket.e2e.pages.ProjectPage;
 import pl.databucket.e2e.support.Api;
 import pl.databucket.e2e.support.ApiResponse;
 import pl.databucket.e2e.support.TestProject;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.UiSuite;
 
 import java.util.List;
@@ -24,6 +25,7 @@ import static pl.databucket.e2e.support.Verify.check;
 import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @UiSuite
+@Area(Area.DATA)
 @DisplayName("Bucket data grid")
 class BucketDataGridTest {
 

@@ -5,6 +5,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -20,6 +21,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** Rules every kind of object in the settings follows. */
 @ApiSuite
+@Area(Area.SETTINGS)
 @DisplayName("Settings: common rules")
 class SettingsRulesTest {
 

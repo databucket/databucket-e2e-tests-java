@@ -11,6 +11,7 @@ import pl.databucket.e2e.model.Bucket;
 import pl.databucket.e2e.model.DataClass;
 import pl.databucket.e2e.model.Icon;
 import pl.databucket.e2e.model.IndexedProperty;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Role;
 import pl.databucket.e2e.support.TestProject;
@@ -27,6 +28,7 @@ import static pl.databucket.e2e.support.Verify.verify;
 import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.SETTINGS)
 @DisplayName("Settings: buckets")
 class SettingsBucketsTest {
 

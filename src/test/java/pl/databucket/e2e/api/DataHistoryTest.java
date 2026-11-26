@@ -9,6 +9,7 @@ import pl.databucket.e2e.client.Change;
 import pl.databucket.e2e.client.Search;
 import pl.databucket.e2e.model.HistoryPage;
 import pl.databucket.e2e.model.RowHistory;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -21,6 +22,7 @@ import static pl.databucket.e2e.support.UserKey.ROBOT;
 import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("Data history")
 class DataHistoryTest {
 

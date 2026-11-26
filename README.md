@@ -84,7 +84,8 @@ Test names come from the method names (`_` → space); `@DisplayName` for names 
 ## The report
 
 [Allure 2](https://allurereport.org) (the classic report, its command line is downloaded by Gradle; no Node.js needed),
-tree: api / ui > class (`@DisplayName`) > test.
+tree: area of the application (`@Area`: Data, Settings, Management, Access, MCP, Fixed bugs) > class (`@DisplayName`)
+> test; API and GUI tests of an area are together (tags `api` / `ui` for `apiTest` / `uiTest`).
 
 - API calls are steps such as `POST /api/bucket/orders/get → 200` with the request and the response attached as one
   HTML view: method, URL, status and time, then the request and the response with their headers (collapsed) and

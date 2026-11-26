@@ -12,6 +12,7 @@ import pl.databucket.e2e.model.DataRow;
 import pl.databucket.e2e.model.NewRow;
 import pl.databucket.e2e.model.Svg;
 import pl.databucket.e2e.model.Tag;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -26,6 +27,7 @@ import static pl.databucket.e2e.support.Verify.verify;
 import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.SETTINGS)
 @DisplayName("Settings: tags and icons")
 class SettingsTagsIconsTest {
 

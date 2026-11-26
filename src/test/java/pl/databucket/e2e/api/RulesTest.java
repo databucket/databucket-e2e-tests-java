@@ -10,6 +10,7 @@ import pl.databucket.e2e.client.Search;
 import pl.databucket.e2e.model.DataRow;
 import pl.databucket.e2e.model.Tag;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -30,6 +31,7 @@ import static pl.databucket.e2e.support.Verify.verify;
 
 /** The rules of a search: [left, operator, right], combined with 'and'; {"or": [...]}, {"and": [...]}, {"!": rule}. */
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("Search rules")
 class RulesTest {
 

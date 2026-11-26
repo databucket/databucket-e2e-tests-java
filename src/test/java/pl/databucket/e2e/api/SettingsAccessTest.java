@@ -21,6 +21,7 @@ import pl.databucket.e2e.model.Team;
 import pl.databucket.e2e.model.View;
 import pl.databucket.e2e.support.Api;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Role;
 import pl.databucket.e2e.support.TestProject;
@@ -43,6 +44,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** Settings that decide who sees what: groups, teams, views, the users of the project and their roles. */
 @ApiSuite
+@Area(Area.SETTINGS)
 @DisplayName("Settings: groups, teams, views, users")
 class SettingsAccessTest {
 

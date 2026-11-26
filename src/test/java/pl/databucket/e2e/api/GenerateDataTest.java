@@ -11,6 +11,7 @@ import pl.databucket.e2e.model.DataRow;
 import pl.databucket.e2e.model.Generated;
 import pl.databucket.e2e.model.Tag;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -33,6 +34,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** Generating random rows on the server: {@code POST /api/bucket/{bucket}/generate} (Databucket 3.20.0+). */
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("Generate data")
 @SuppressWarnings({"rawtypes", "unchecked"})
 class GenerateDataTest {

@@ -7,6 +7,7 @@ import pl.databucket.e2e.pages.LoginPage;
 import pl.databucket.e2e.pages.ProjectPage;
 import pl.databucket.e2e.support.TestProject;
 import pl.databucket.e2e.support.TestUser;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.UiSuite;
 
 import java.util.regex.Pattern;
@@ -17,6 +18,7 @@ import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @UiSuite
+@Area(Area.ACCESS)
 @DisplayName("Login page")
 class LoginPageTest {
 
