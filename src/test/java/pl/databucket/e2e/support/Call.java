@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Options of one API call: {@code robot.post(path, call().v2().body(obj(...)).expect(201))}.
+ * Options of one API call: {@code robot.post(path, call().body(obj(...)).expect(201))}.
  */
 public final class Call {
 
@@ -29,11 +29,6 @@ public final class Call {
     public Call header(String name, String value) {
         headers.put(name, value);
         return this;
-    }
-
-    /** Version 2 of the data API (header Databucket-Api-Version: 2). */
-    public Call v2() {
-        return header("Databucket-Api-Version", "2");
     }
 
     /** Fail the call when the status differs. */

@@ -127,14 +127,14 @@ class McpServerTest {
     void only_a_robot_removes_data(TestProject project) {
         Api agent = project.as(AGENT);
         Api robot = project.as(ROBOT);
-        ApiResponse row = robot.post("/api/bucket/" + BUCKET, call().v2().body(obj("properties", obj("login", "dave"))).expect(201));
+        ApiResponse row = robot.post("/api/bucket/" + BUCKET, call().body(obj("properties", obj("login", "dave"))).expect(201));
         Number rowId = row.path("id");
 
         ToolResult byAgent = callTool(agent, "delete_data", obj("bucket", BUCKET, "ids", arr(rowId)));
         assertThat(byAgent.isError()).isTrue();
         assertThat(byAgent.text()).contains("ROBOT role");
         // the REST API refuses it too
-        agent.delete("/api/bucket/" + BUCKET + "/" + rowId, call().v2().expect(403));
+        agent.delete("/api/bucket/" + BUCKET + "/" + rowId, call().expect(403));
 
         ToolResult byRobot = callTool(robot, "delete_data", obj("bucket", BUCKET, "ids", arr(rowId)));
         assertThat(byRobot.<Integer>path("count")).isEqualTo(1);

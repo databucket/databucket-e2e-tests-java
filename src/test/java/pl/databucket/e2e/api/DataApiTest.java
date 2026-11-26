@@ -20,7 +20,7 @@ import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
 
 @ApiSuite
-@DisplayName("Data API v2")
+@DisplayName("Data API")
 class DataApiTest {
 
     private static final String BUCKET = "orders";
