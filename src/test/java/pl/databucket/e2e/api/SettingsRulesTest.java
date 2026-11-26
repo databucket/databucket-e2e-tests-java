@@ -15,6 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static pl.databucket.e2e.support.Call.call;
 import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** Rules every kind of object in the settings follows. */
 @ApiSuite
@@ -53,14 +55,14 @@ class SettingsRulesTest {
     @MethodSource("readByAll")
     @DisplayName("a MEMBER reads how the data looks")
     void member_reads(String path, TestProject project) {
-        assertThat(project.as(MEMBER).get(path).status()).isEqualTo(200);
+        verify("status", project.as(MEMBER).get(path).status(), 200);
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("adminOnly")
     @DisplayName("a MEMBER can not read who sees what")
     void member_can_not_read(String path, TestProject project) {
-        assertThat(project.as(MEMBER).get(path).status()).isEqualTo(403);
+        verify("status", project.as(MEMBER).get(path).status(), 403);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -70,7 +72,7 @@ class SettingsRulesTest {
         Map<String, Object> body = new java.util.LinkedHashMap<>(valid);
         body.put("name", "by-member");
 
-        assertThat(project.as(MEMBER).post(path, call().body(body)).status()).isEqualTo(403);
+        verify("status", project.as(MEMBER).post(path, call().body(body)).status(), 403);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -78,7 +80,7 @@ class SettingsRulesTest {
     @DisplayName("removing an object that does not exist gives 404")
     void delete_missing(String path, TestProject project) {
         // 30000: within the ids of every kind (teams have short ids)
-        assertThat(project.as(ADMIN).delete(path + "/30000").status()).isEqualTo(404);
+        verify("status", project.as(ADMIN).delete(path + "/30000").status(), 404);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -90,7 +92,7 @@ class SettingsRulesTest {
 
         ApiResponse response = project.as(ADMIN).post(path, call().body(body));
 
-        assertThat(response.status()).isEqualTo(400);
+        verify("status", response.status(), 400);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -103,7 +105,8 @@ class SettingsRulesTest {
         ApiResponse response = project.as(ADMIN).put(path, call().body(body));
 
         // 404 for all but teams (400); the same message
-        assertThat(response.status()).isIn(400, 404);
-        assertThat(response.<String>path("message")).contains("null id");
+        verifyAll(v -> v
+                .check("status: 400 or 404", () -> assertThat(response.status()).isIn(400, 404))
+                .check("message: contains 'null id'", () -> assertThat(response.<String>path("message")).contains("null id")));
     }
 }

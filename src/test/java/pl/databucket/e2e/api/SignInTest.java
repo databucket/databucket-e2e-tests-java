@@ -13,6 +13,8 @@ import pl.databucket.e2e.support.TestUser;
 import static org.assertj.core.api.Assertions.assertThat;
 import static pl.databucket.e2e.support.Call.call;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
 @DisplayName("Sign-in")
@@ -25,10 +27,11 @@ class SignInTest {
         AuthResponse response = new Api("anonymous").post("/api/public/signin",
                 call().body(new SignIn(user.username(), user.password(), project.id())).expect(200)).as(AuthResponse.class);
 
-        assertThat(response.token()).isNotBlank();
-        assertThat(response.project().id()).isEqualTo(project.id());
-        assertThat(response.project().name()).isEqualTo(project.name());
-        assertThat(response.roles()).contains("MEMBER");
+        verifyAll(v -> v
+                .check("token: not blank", () -> assertThat(response.token()).isNotBlank())
+                .that("project.id", response.project().id(), project.id())
+                .that("project.name", response.project().name(), project.name())
+                .check("roles: contain MEMBER", () -> assertThat(response.roles()).contains("MEMBER")));
     }
 
     @Test
@@ -36,13 +39,13 @@ class SignInTest {
         ApiResponse response = new Api("anonymous").post("/api/public/signin",
                 call().body(new SignIn(project.user(MEMBER).username(), "wrong", project.id())));
 
-        assertThat(response.status()).isEqualTo(401);
+        verify("status", response.status(), 401);
     }
 
     @Test
     void calls_without_a_token_are_refused() {
         ApiResponse response = new Api("anonymous").get("/api/buckets");
 
-        assertThat(response.status()).isEqualTo(401);
+        verify("status", response.status(), 401);
     }
 }

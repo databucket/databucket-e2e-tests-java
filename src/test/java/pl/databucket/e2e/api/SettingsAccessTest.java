@@ -37,6 +37,9 @@ import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** Settings that decide who sees what: groups, teams, views, the users of the project and their roles. */
 @ApiSuite
@@ -77,18 +80,20 @@ class SettingsAccessTest {
 
             AccessTree tree = project.as(MEMBER).settings().accessTree();
 
-            assertThat(tree.groups()).singleElement().satisfies(group -> {
-                assertThat(group.name()).isEqualTo("Development");
-                assertThat(group.shortName()).isEqualTo("DEV");
-                assertThat(group.bucketsIds()).containsExactlyInAnyOrder(dev.id, test.id);
-            });
+            verifyAll(v -> v
+                    .that("groups: size", tree.groups().size(), 1)
+                    .that("group.name", tree.groups().get(0).name(), "Development")
+                    .that("group.shortName", tree.groups().get(0).shortName(), "DEV")
+                    .check("group.bucketsIds: dev and test", () -> assertThat(tree.groups().get(0).bucketsIds())
+                            .containsExactlyInAnyOrder(dev.id, test.id)));
         }
 
         @Test
         void a_group_for_admins_is_hidden_from_a_member(TestProject project) {
             settings.groups().create(new Group().name("Admins").shortName("ADM").roleId((short) Role.ADMIN.id));
 
-            assertThat(project.as(MEMBER).settings().accessTree().groupNames()).doesNotContain("Admins");
+            List<String> groups = project.as(MEMBER).settings().accessTree().groupNames();
+            check("groups: without Admins", () -> assertThat(groups).doesNotContain("Admins"));
         }
 
         @Test
@@ -98,12 +103,13 @@ class SettingsAccessTest {
                     .bucketsIds(Set.of(dev.id)).roleId((short) Role.MEMBER.id));
 
             Group changed = settings.groups().update(created.name("Dev environment").bucketsIds(Set.of()));
-            assertThat(changed.name).isEqualTo("Dev environment");
-            assertThat(changed.bucketsIds).isNullOrEmpty();
+            verifyAll(v -> v
+                    .that("name", changed.name, "Dev environment")
+                    .check("bucketsIds: none", () -> assertThat(changed.bucketsIds).isNullOrEmpty()));
 
             settings.groups().delete(created.id);
-            assertThat(settings.groups().list()).isEmpty();
-            assertThat(settings.buckets().list()).extracting(b -> b.name).containsExactly("dev-users");
+            verify("groups: size", settings.groups().list().size(), 0);
+            verify("buckets", settings.buckets().list().stream().map(b -> b.name).toList(), List.of("dev-users"));
         }
 
     }
@@ -117,9 +123,9 @@ class SettingsAccessTest {
             Team team = settings.teams().create(new Team().name("QA").usersIds(Set.of(userId(project, MEMBER), userId(project, AGENT))));
             settings.buckets().create(SettingsBucketsTest.bucket("qa-data").roleId(null).teamsIds(Set.of(team.id)));
 
-            assertThat(project.as(MEMBER).bucket("qa-data", Login.class).tryFind(Search.all()).status()).isEqualTo(200);
-            assertThat(project.as(AGENT).bucket("qa-data", Login.class).tryFind(Search.all()).status()).isEqualTo(200);
-            assertThat(project.as(ROBOT).bucket("qa-data", Login.class).tryFind(Search.all()).status()).isEqualTo(404);
+            verify("member: status", project.as(MEMBER).bucket("qa-data", Login.class).tryFind(Search.all()).status(), 200);
+            verify("agent: status", project.as(AGENT).bucket("qa-data", Login.class).tryFind(Search.all()).status(), 200);
+            verify("robot: status", project.as(ROBOT).bucket("qa-data", Login.class).tryFind(Search.all()).status(), 404);
         }
 
         @Test
@@ -127,11 +133,11 @@ class SettingsAccessTest {
             Team team = settings.teams().create(new Team().name("QA").usersIds(Set.of(userId(project, MEMBER), userId(project, AGENT))));
             settings.buckets().create(SettingsBucketsTest.bucket("qa-robots").roleId((short) Role.ROBOT.id).teamsIds(Set.of(team.id)));
 
-            assertThat(project.as(MEMBER).bucket("qa-robots", Login.class).tryFind(Search.all()).status()).isEqualTo(200);
+            verify("member: status", project.as(MEMBER).bucket("qa-robots", Login.class).tryFind(Search.all()).status(), 200);
             // in the team, but below ROBOT
-            assertThat(project.as(AGENT).bucket("qa-robots", Login.class).tryFind(Search.all()).status()).isEqualTo(404);
+            verify("agent: status", project.as(AGENT).bucket("qa-robots", Login.class).tryFind(Search.all()).status(), 404);
             // ROBOT, but not in the team
-            assertThat(project.as(ROBOT).bucket("qa-robots", Login.class).tryFind(Search.all()).status()).isEqualTo(404);
+            verify("robot: status", project.as(ROBOT).bucket("qa-robots", Login.class).tryFind(Search.all()).status(), 404);
         }
 
         @Test
@@ -142,18 +148,22 @@ class SettingsAccessTest {
 
             ProjectUser changed = settings.users().update(new ProjectUser().username(robot.username).teamsIds(Set.of(team.id)));
 
-            assertThat(changed.teamsIds).containsExactly(team.id);
-            assertThat(settings.teams().list()).singleElement().satisfies(t -> assertThat(t.usersIds).containsExactly(robot.id));
+            verify("teamsIds", changed.teamsIds, List.of(team.id));
+            List<Team> teams = settings.teams().list();
+            verifyAll(v -> v
+                    .that("teams: size", teams.size(), 1)
+                    .that("team.usersIds", teams.get(0).usersIds, List.of(robot.id)));
         }
 
         @Test
         void changes_and_removes_a_team(TestProject project) {
             Team created = settings.teams().create(new Team().name("QA").description("testers"));
 
-            assertThat(settings.teams().update(created.description("testers and automation")).description).isEqualTo("testers and automation");
+            verify("description", settings.teams().update(created.description("testers and automation")).description,
+                    "testers and automation");
 
             settings.teams().delete(created.id);
-            assertThat(settings.teams().list()).isEmpty();
+            verify("teams: size", settings.teams().list().size(), 0);
         }
     }
 
@@ -172,9 +182,10 @@ class SettingsAccessTest {
 
             AccessTree tree = project.as(MEMBER).settings().accessTree();
 
-            assertThat(tree.viewNames()).containsExactly("all orders");
-            assertThat(tree.views().get(0).featuresIds()).containsExactly((short) 1, (short) 2);
-            assertThat(tree.views().get(0).sort()).isEqualTo("desc(id)");
+            verifyAll(v -> v
+                    .that("views", tree.viewNames(), List.of("all orders"))
+                    .that("view.featuresIds", tree.views().get(0).featuresIds(), List.of((short) 1, (short) 2))
+                    .that("view.sort", tree.views().get(0).sort(), "desc(id)"));
         }
 
         @Test
@@ -184,11 +195,12 @@ class SettingsAccessTest {
                     .bucketsIds(Set.of(bucket.id)).roleId((short) Role.MEMBER.id));
 
             View changed = settings.views().update(created.name("everything").sort("asc($.customer.name)"));
-            assertThat(changed.name).isEqualTo("everything");
-            assertThat(changed.sort).isEqualTo("asc($.customer.name)");
+            verifyAll(v -> v
+                    .that("name", changed.name, "everything")
+                    .that("sort", changed.sort, "asc($.customer.name)"));
 
             settings.views().delete(created.id);
-            assertThat(settings.views().list()).isEmpty();
+            verify("views: size", settings.views().list().size(), 0);
         }
 
         @Test
@@ -196,9 +208,9 @@ class SettingsAccessTest {
             Columns columns = columns();
             View view = new View().name("all").columnsId(columns.id).roleId((short) Role.MEMBER.id);
 
-            assertThat(settings.views().tryCreate(view.sort("desc(password)")).status()).isEqualTo(400);
-            assertThat(settings.views().tryCreate(view.sort("asc($.a'))--)")).status()).isEqualTo(400);
-            assertThat(settings.views().create(view.sort("asc($.customer.name)")).sort).isEqualTo("asc($.customer.name)");
+            verify("status", settings.views().tryCreate(view.sort("desc(password)")).status(), 400);
+            verify("status", settings.views().tryCreate(view.sort("asc($.a'))--)")).status(), 400);
+            verify("sort", settings.views().create(view.sort("asc($.customer.name)")).sort, "asc($.customer.name)");
         }
 
         @Test
@@ -206,8 +218,8 @@ class SettingsAccessTest {
             View noColumns = new View().name("all").columnsId(999999L).roleId((short) Role.MEMBER.id);
             View noFilter = new View().name("all").columnsId(columns().id).filterId(999999L).roleId((short) Role.MEMBER.id);
 
-            assertThat(settings.views().tryCreate(noColumns).status()).isEqualTo(404);
-            assertThat(settings.views().tryCreate(noFilter).status()).isEqualTo(404);
+            verify("no columns: status", settings.views().tryCreate(noColumns).status(), 404);
+            verify("no filter: status", settings.views().tryCreate(noFilter).status(), 404);
         }
     }
 
@@ -219,17 +231,20 @@ class SettingsAccessTest {
         void an_ADMIN_sees_the_users_of_the_project_only(TestProject project) {
             List<ProjectUser> users = settings.users().list();
 
-            assertThat(users).extracting(u -> u.username).containsExactlyInAnyOrder(
-                    project.user(ADMIN).username(), project.user(MEMBER).username(),
-                    project.user(ROBOT).username(), project.user(AGENT).username());
-            assertThat(users).filteredOn(u -> u.username.equals(project.user(ROBOT).username()))
-                    .singleElement().satisfies(u -> assertThat(u.rolesIds).containsExactly((short) Role.ROBOT.id));
+            verifyAll(v -> v
+                    .check("users: the four of the project", () -> assertThat(users).extracting(u -> u.username)
+                            .containsExactlyInAnyOrder(project.user(ADMIN).username(), project.user(MEMBER).username(),
+                                    project.user(ROBOT).username(), project.user(AGENT).username()))
+                    .check("robot: rolesIds ROBOT", () -> assertThat(users)
+                            .filteredOn(u -> u.username.equals(project.user(ROBOT).username()))
+                            .singleElement().satisfies(u -> assertThat(u.rolesIds).containsExactly((short) Role.ROBOT.id))));
         }
 
         @Test
         void the_roles_from_the_lowest_are_AGENT_ROBOT_MEMBER_ADMIN_SUPER(TestProject project) {
-            assertThat(project.as(MEMBER).settings().roles()).extracting(RoleInfo::name)
-                    .containsExactlyInAnyOrder("SUPER", "ADMIN", "MEMBER", "ROBOT", "AGENT");
+            List<RoleInfo> roles = project.as(MEMBER).settings().roles();
+            check("roles: the five", () -> assertThat(roles).extracting(RoleInfo::name)
+                    .containsExactlyInAnyOrder("SUPER", "ADMIN", "MEMBER", "ROBOT", "AGENT"));
         }
 
         @Test
@@ -238,12 +253,12 @@ class SettingsAccessTest {
             Api signedIn = project.as(MEMBER);
 
             ApiResponse wrongOld = signedIn.settings().changePassword(member.username(), "not my password", "N3w-Passw0rd!");
+            verify("wrong old password: status", wrongOld.status(), 406);
             ApiResponse changed = signedIn.settings().changePassword(member.username(), member.password(), "N3w-Passw0rd!");
+            verify("status", changed.status(), 200);
 
-            assertThat(wrongOld.status()).isEqualTo(406);
-            assertThat(changed.status()).isEqualTo(200);
-            assertThat(signIn(member.username(), member.password(), project.id()).status()).isEqualTo(401);
-            assertThat(signIn(member.username(), "N3w-Passw0rd!", project.id()).status()).isEqualTo(200);
+            verify("old password: status", signIn(member.username(), member.password(), project.id()).status(), 401);
+            verify("new password: status", signIn(member.username(), "N3w-Passw0rd!", project.id()).status(), 200);
         }
 
         @Test
@@ -252,9 +267,10 @@ class SettingsAccessTest {
 
             ApiResponse response = project.as(MEMBER).settings().changePassword(admin.username(), admin.password(), "N3w-Passw0rd!");
 
-            assertThat(response.status()).isEqualTo(406);
-            assertThat(response.<String>path("message")).isEqualTo("You cannot change the password of this user!");
-            assertThat(signIn(admin.username(), admin.password(), project.id()).status()).isEqualTo(200);
+            verifyAll(v -> v
+                    .that("status", response.status(), 406)
+                    .that("message", response.<String>path("message"), "You cannot change the password of this user!"));
+            verify("admin signs in: status", signIn(admin.username(), admin.password(), project.id()).status(), 200);
         }
 
         @Test
@@ -264,11 +280,11 @@ class SettingsAccessTest {
             project.token(AGENT);
 
             ApiResponse wrong = project.as(MEMBER).settings().changePassword(agent.username(), "guess", "N3w-Passw0rd!");
+            verify("wrong password: status", wrong.status(), 406);
             ApiResponse changed = project.as(MEMBER).settings().changePassword(agent.username(), agent.password(), "N3w-Passw0rd!");
+            verify("status", changed.status(), 200);
 
-            assertThat(wrong.status()).isEqualTo(406);
-            assertThat(changed.status()).isEqualTo(200);
-            assertThat(signIn(agent.username(), "N3w-Passw0rd!", project.id()).status()).isEqualTo(200);
+            verify("new password: status", signIn(agent.username(), "N3w-Passw0rd!", project.id()).status(), 200);
         }
 
         @Test
@@ -282,13 +298,13 @@ class SettingsAccessTest {
                 project.management().users().update(member.projectsIds(projects).password(null));
 
                 ApiResponse switched = project.as(MEMBER).settings().changeProject(other.id());
+                verify("status", switched.status(), 200);
                 String token = switched.as(AuthResponse.class).token();
 
-                assertThat(switched.status()).isEqualTo(200);
-                assertThat(new Api("member").withToken(token).bucket("other-orders", Login.class).tryFind(Search.all()).status())
-                        .isEqualTo(200);
+                verify("other project data: status",
+                        new Api("member").withToken(token).bucket("other-orders", Login.class).tryFind(Search.all()).status(), 200);
                 // the admin of this project isn't assigned to the other one
-                assertThat(project.as(ADMIN).settings().changeProject(other.id()).status()).isEqualTo(403);
+                verify("admin: status", project.as(ADMIN).settings().changeProject(other.id()).status(), 403);
             }
         }
     }
