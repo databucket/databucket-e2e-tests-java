@@ -188,6 +188,33 @@ class SettingsTest {
     }
 
     @Test
+    @DisplayName("a group refused by the validation keeps what was typed (fixed in 3.26.2)")
+    void a_refused_group_keeps_what_was_typed(TestProject project, Page page) {
+        SettingsPage ui = open(project, page, "Groups");
+
+        ui.add(obj("Short name", "SHOP", "Name", "Shop", "Description", "the shop buckets"));
+        ui.select("Select buckets", BUCKET);
+        ui.trySave();
+
+        verifyAll(v -> v
+                .check("the message: Item is not valid", () -> assertThat(ui.message()).containsText("Item is not valid"))
+                .check("the message names the rule", () -> assertThat(ui.message()).containsText("Name must be at least 5 characters long"))
+                .check("Short name kept", () -> assertThat(ui.field("Short name")).hasValue("SHOP"))
+                .check("Name kept", () -> assertThat(ui.field("Name")).hasValue("Shop"))
+                .check("Description kept", () -> assertThat(ui.field("Description")).hasValue("the shop buckets"))
+                .check("the bucket kept", () -> assertThat(ui.editorButton("Select buckets")).hasText("1"))
+                .that("nothing saved", settings(project).groups().list().size(), 0));
+
+        ui.change(obj("Name", "Online shop"));
+        ui.save();
+
+        Group group = settings(project).groups().list().get(0);
+        verifyAll(v -> v
+                .that("name", group.name, "Online shop")
+                .that("bucketsIds", group.bucketsIds, Set.of(bucketId)));
+    }
+
+    @Test
     void shows_the_icons_of_the_project_and_deletes_one(TestProject project, Page page) {
         SettingsPage ui = open(project, page, "Icons");
         verifyAll(v -> v
