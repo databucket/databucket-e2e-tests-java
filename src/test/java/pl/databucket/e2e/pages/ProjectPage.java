@@ -46,8 +46,13 @@ public final class ProjectPage {
      * puts it. Tests of the login page itself use {@link LoginPage}.
      */
     public void openAs(TestProject project, UserKey key) {
+        openAs(project, key, "");
+    }
+
+    /** As {@link #openAs(TestProject, UserKey)}, at a page of the project, e.g. "/settings/jobs". */
+    public void openAs(TestProject project, UserKey key, String path) {
         TestUser user = project.user(key);
-        Screenshots.step("Open the project as " + key.key() + " (" + user.username() + ")", () -> {
+        Screenshots.step("Open the project" + path + " as " + key.key() + " (" + user.username() + ")", () -> {
             Map<String, Object> session = obj(
                     "user-name", user.username(),
                     "token", project.token(key),
@@ -61,7 +66,7 @@ public final class ProjectPage {
                       for (const [name, value] of Object.entries(values)) localStorage.setItem(name, value);
                     })(%s);
                     """.formatted(Json.write(session)));
-            page.navigate("/project/" + project.id());
+            page.navigate("/project/" + project.id() + path);
         });
     }
 
@@ -211,6 +216,16 @@ public final class ProjectPage {
         return main().getByRole(AriaRole.ROW).filter(new Locator.FilterOptions()
                         .setHas(page.getByRole(AriaRole.CELL).getByRole(AriaRole.CHECKBOX)))
                 .all().stream().map(row -> row.getByRole(AriaRole.CELL).nth(index).innerText().strip()).toList();
+    }
+
+    /** Opens the dialog "Task execution" of the toolbar. */
+    public TaskExecutionDialog openTaskExecution() {
+        TaskExecutionDialog dialog = new TaskExecutionDialog(page);
+        Screenshots.step("Open Task execution", () -> {
+            main().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Task execution")).click();
+            assertThat(dialog.dialog()).isVisible();
+        });
+        return dialog;
     }
 
     /** Opens the rich filter dialog. */
