@@ -99,6 +99,10 @@ public final class Api {
         return call("PUT", path, options);
     }
 
+    public ApiResponse patch(String path, Call options) {
+        return call("PATCH", path, options);
+    }
+
     public ApiResponse delete(String path) {
         return call("DELETE", path, Call.call());
     }

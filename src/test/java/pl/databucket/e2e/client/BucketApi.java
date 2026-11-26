@@ -130,16 +130,16 @@ public final class BucketApi<T> {
     // ---------------------------------------------------------------- changing
 
     public Message update(Change change, long... ids) {
-        return api.put(path + "/" + ids(ids), call().body(change).expect(200)).as(Message.class);
+        return api.patch(path + "/" + ids(ids), call().body(change).expect(200)).as(Message.class);
     }
 
     /** Changes the rows matching the rules of the change. */
     public Message updateWhere(Change change) {
-        return api.put(path, call().body(change).expect(200)).as(Message.class);
+        return api.patch(path, call().body(change).expect(200)).as(Message.class);
     }
 
     public ApiResponse tryUpdateWhere(Change change) {
-        return api.put(path, call().body(change));
+        return api.patch(path, call().body(change));
     }
 
     public Message release(long... ids) {
