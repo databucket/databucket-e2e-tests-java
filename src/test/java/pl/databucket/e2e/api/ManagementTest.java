@@ -92,18 +92,19 @@ class ManagementTest {
         ManagedUser usable(String username, Role role, Set<Integer> projects, String password) {
             ManagedUser user = create(new ManagedUser().username(username).enabled(true)
                     .rolesIds(Set.of((short) role.id)).projectsIds(projects));
-            management.resetPassword(username, "tmp-" + password);
+            verify("status", management.resetPassword(username, "tmp-" + password).status(), 200);
             AuthResponse first = signIn(username, "tmp-" + password, null).as(AuthResponse.class);
             verify("changePassword", first.changePassword(), true);
-            new Api(username).withToken(first.token()).settings().changePassword(username, "tmp-" + password, password);
+            verify("status", new Api(username).withToken(first.token()).settings()
+                    .changePassword(username, "tmp-" + password, password).status(), 200);
             return user;
         }
 
         @Override
         public void close() {
             for (ManagedUser user : users)
-                management.users().tryUpdate(new ManagedUser().username(user.username).enabled(false)
-                        .rolesIds(user.rolesIds).projectsIds(Set.of()));
+                verify("disabled: status", management.users().tryUpdate(new ManagedUser().username(user.username)
+                        .enabled(false).rolesIds(user.rolesIds).projectsIds(Set.of())).status(), 200);
         }
     }
 
@@ -175,12 +176,14 @@ class ManagementTest {
             ManagedProject self = management.projects().list().stream().filter(p -> p.id == project.id()).findFirst().orElseThrow();
 
             management.projects().update(self.enabled(false));
-            ApiResponse response = signIn(project.user(MEMBER).username(), project.user(MEMBER).password(), (int) project.id());
-            management.projects().update(self.enabled(true));
-
-            verifyAll(v -> v
-                    .that("status", response.status(), 403)
-                    .that("message", response.<String>path("message"), "The project is disabled!"));
+            try {
+                ApiResponse response = signIn(project.user(MEMBER).username(), project.user(MEMBER).password(), (int) project.id());
+                verifyAll(v -> v
+                        .that("status", response.status(), 403)
+                        .that("message", response.<String>path("message"), "The project is disabled!"));
+            } finally {
+                management.projects().update(self.enabled(true));
+            }
         }
 
         @Test
@@ -189,12 +192,14 @@ class ManagementTest {
             ManagedProject self = management.projects().list().stream().filter(p -> p.id == project.id()).findFirst().orElseThrow();
 
             management.projects().update(self.expirationDate(Instant.now().minus(1, ChronoUnit.DAYS)));
-            ApiResponse response = signIn(project.user(MEMBER).username(), project.user(MEMBER).password(), (int) project.id());
-            management.projects().update(self.expirationDate(null));
-
-            verifyAll(v -> v
-                    .that("status", response.status(), 403)
-                    .that("message", response.<String>path("message"), "The project expired!"));
+            try {
+                ApiResponse response = signIn(project.user(MEMBER).username(), project.user(MEMBER).password(), (int) project.id());
+                verifyAll(v -> v
+                        .that("status", response.status(), 403)
+                        .that("message", response.<String>path("message"), "The project expired!"));
+            } finally {
+                management.projects().update(self.expirationDate(null));
+            }
         }
 
     }

@@ -124,7 +124,9 @@ public final class Api {
         if (body != null) headers.put("Content-Type", "application/json");
 
         if (quiet) return send(method, path, headers, body, options, null);
-        return Allure.step(method + " " + path, (Allure.ThrowableContextRunnable<ApiResponse, Allure.StepContext>) step -> send(method, path, headers, body, options, step));
+        // the step: a short title; the method, the path and the status in the step of the request / response under it
+        String title = options.name != null ? options.name : CallTitle.of(method, path, body);
+        return Allure.step(title, (Allure.ThrowableContextRunnable<ApiResponse, Allure.StepContext>) step -> send(method, path, headers, body, options, step));
     }
 
     private ApiResponse send(String method, String path, Map<String, String> headers, String body, Call options,
@@ -147,7 +149,6 @@ public final class Api {
 
         if (step != null) {
             Verify.callStarted();
-            step.name(method + " " + path + " → " + result.status());
             JsonNode requestJson = body == null ? null : Json.parseOrNull(body);
             JsonNode responseJson = Json.parseOrNull(text);
             String view = HttpView.render(new HttpView.Exchange(
@@ -160,18 +161,15 @@ public final class Api {
                     took,
                     maskHeaders(shown(responseHeaders)),
                     responseJson != null ? mask(responseJson) : text.isEmpty() ? null : TextNode.valueOf(text)));
-            // Allure shows the sub-steps before the attachments: the request / response in a step of its own, so that
-            // a verification of the call (Verify) comes after it
-            String attachment = options.name != null ? options.name : "request / response";
-            Allure.step(attachment, () -> Allure.addAttachment(attachment, "text/html", view, ".html"));
+            // the request / response in a step of its own named "POST /api/... → 201" (Allure shows the sub-steps
+            // before the attachments: so a verification of the call comes after it)
+            String exchange = method + " " + path + " → " + result.status();
+            Allure.step(exchange, () -> Allure.addAttachment(exchange, "text/html", view, ".html"));
         }
-        if (!options.checks.isEmpty()) {
-            ResponseChecks.verify(result, options.expectStatus, options.checks, step != null);
-            return result;
-        }
-        if (options.expectStatus != null && result.status() != options.expectStatus)
-            throw new AssertionError(method + " " + path + ": expected status " + options.expectStatus + ", got "
-                    + result.status() + "\n" + text.substring(0, Math.min(text.length(), 2000)));
+        // the expected status and the checks of the response: a verification of the call
+        if (options.expectStatus != null || !options.checks.isEmpty())
+            ResponseChecks.verify(result, options.expectStatus, options.checks, step != null,
+                    method + " " + path + "\n" + text.substring(0, Math.min(text.length(), 2000)));
         return result;
     }
 

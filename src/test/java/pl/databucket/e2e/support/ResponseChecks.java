@@ -15,17 +15,20 @@ final class ResponseChecks {
     private ResponseChecks() {
     }
 
-    /** In the step of the call when reported; a quiet call (no step) only fails. */
-    static void verify(ApiResponse response, Integer expectStatus, List<Check> checks, boolean report) {
+    /**
+     * In the step of the call when reported; a quiet call (no step) only fails, with the call and its response in
+     * the message (its request / response isn't in the report).
+     */
+    static void verify(ApiResponse response, Integer expectStatus, List<Check> checks, boolean report, String call) {
         Verify.Checks rows = Verify.checks();
         if (expectStatus != null) rows.status(response.status(), expectStatus);
-        var root = Json.parseOrNull(response.text());
+        var root = checks.isEmpty() ? null : Json.parseOrNull(response.text());
         for (Check check : checks) rows.json(check.path(), root, check.expected());
         if (report) {
             Verify.report(rows.rows, true);
         } else if (rows.rows.stream().anyMatch(row -> !row.ok())) {
             throw new AssertionError(rows.rows.stream().filter(row -> !row.ok()).map(Verify.Row::text)
-                    .reduce((a, b) -> a + "\n  " + b).orElse(""));
+                    .reduce((a, b) -> a + "\n  " + b).orElse("") + "\n" + call);
         }
     }
 }

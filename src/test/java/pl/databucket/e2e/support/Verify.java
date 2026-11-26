@@ -11,7 +11,6 @@ import io.qameta.allure.model.StepResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -175,32 +174,68 @@ public final class Verify {
     static void report(List<Row> rows, boolean inCurrentStep) {
         if (rows.isEmpty()) return;
         long failed = rows.stream().filter(row -> !row.ok()).count();
-        String name = "verification: " + (rows.size() - failed) + " of " + rows.size() + " passed";
         String failures = rows.stream().filter(row -> !row.ok()).map(Row::text)
                 .reduce((a, b) -> a + "\n  " + b).orElse("");
 
         StepResult lastCall = inCurrentStep ? null : lastCallStep();
         if (lastCall != null) {
-            lastCall.getSteps().add(step(name, rows));
+            // the checks made by the test after the call: into its verification (e.g. the one of its status)
+            StepResult verification = verificationOf(lastCall);
+            if (verification == null) lastCall.getSteps().add(verificationStep(rows));
+            else addRows(verification, rows);
             if (failed > 0) {
                 lastCall.setStatus(Status.FAILED);
                 lastCall.setStatusDetails(new StatusDetails().setMessage(failed + " of " + rows.size()
                         + " checks failed:\n  " + failures));
             }
         } else {
+            // a step of the current step (the API call being made) or of the test
+            StepResult verification = verificationStep(rows);
             AllureLifecycle lifecycle = Allure.getLifecycle();
-            String uuid = UUID.randomUUID().toString();
-            lifecycle.startStep(uuid, new StepResult().setName(name));
-            for (Row row : rows)
-                if (!row.ok() || ReportConfig.SHOW_PASSED_CHECKS)
-                    Allure.step(row.text(), row.ok() ? Status.PASSED : Status.FAILED);
-            lifecycle.updateStep(uuid, step -> step.setStatus(failed > 0 ? Status.FAILED : Status.PASSED));
-            lifecycle.stopStep(uuid);
+            if (Objects.equals(lifecycle.getCurrentTestCaseOrStep(), lifecycle.getCurrentTestCase()))
+                lifecycle.updateTestCase(test -> test.getSteps().add(verification));
+            else
+                lifecycle.updateStep(step -> step.getSteps().add(verification));
         }
         if (failed > 0) {
             String where = lastCall != null ? lastCall.getName() + ": " : "";
             throw new AssertionError(where + failed + " of " + rows.size() + " checks failed:\n  " + failures);
         }
+    }
+
+    // "verification: 4 of 5 passed": the step of a verification and its counts (read back to add later checks to it)
+    private static final Pattern VERIFICATION = Pattern.compile("verification: (\\d+) of (\\d+) passed");
+
+    // the verification that is the last step of the call, or null
+    private static StepResult verificationOf(StepResult call) {
+        List<StepResult> steps = call.getSteps();
+        if (steps.isEmpty()) return null;
+        StepResult last = steps.get(steps.size() - 1);
+        return last.getName() != null && VERIFICATION.matcher(last.getName()).matches() ? last : null;
+    }
+
+    private static StepResult verificationStep(List<Row> rows) {
+        long now = System.currentTimeMillis();
+        StepResult step = new StepResult().setName("verification: 0 of 0 passed").setStage(Stage.FINISHED)
+                .setStart(now).setStop(now);
+        addRows(step, rows);
+        return step;
+    }
+
+    private static void addRows(StepResult verification, List<Row> rows) {
+        long now = System.currentTimeMillis();
+        Matcher name = VERIFICATION.matcher(verification.getName());
+        int[] counts = name.matches()
+                ? new int[]{Integer.parseInt(name.group(1)), Integer.parseInt(name.group(2))} : new int[]{0, 0};
+        for (Row row : rows) {
+            counts[1]++;
+            if (row.ok()) counts[0]++;
+            if (!row.ok() || ReportConfig.SHOW_PASSED_CHECKS)
+                verification.getSteps().add(new StepResult().setName(row.text()).setStage(Stage.FINISHED)
+                        .setStart(now).setStop(now).setStatus(row.ok() ? Status.PASSED : Status.FAILED));
+        }
+        verification.setName("verification: " + counts[0] + " of " + counts[1] + " passed")
+                .setStatus(counts[0] == counts[1] ? Status.PASSED : Status.FAILED).setStop(now);
     }
 
     // the step of the API call that is the last step of the current test or step, or null
@@ -216,17 +251,6 @@ public final class Verify {
         if (current.isEmpty() || current.get(0).isEmpty()) return null;
         List<StepResult> steps = current.get(0);
         return steps.get(steps.size() - 1) == call ? call : null;
-    }
-
-    private static StepResult step(String name, List<Row> rows) {
-        long now = System.currentTimeMillis();
-        StepResult step = new StepResult().setName(name).setStage(Stage.FINISHED).setStart(now).setStop(now)
-                .setStatus(rows.stream().allMatch(Row::ok) ? Status.PASSED : Status.FAILED);
-        for (Row row : rows)
-            if (!row.ok() || ReportConfig.SHOW_PASSED_CHECKS)
-                step.getSteps().add(new StepResult().setName(row.text()).setStage(Stage.FINISHED).setStart(now)
-                        .setStop(now).setStatus(row.ok() ? Status.PASSED : Status.FAILED));
-        return step;
     }
 
     // ---------------------------------------------------------------- helpers

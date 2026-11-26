@@ -58,10 +58,12 @@ class FixedIn3190Test {
         ManagedProject self = management.projects().list().stream().filter(p -> p.id == project.id()).findFirst().orElseThrow();
 
         management.projects().update(self.enabled(false));
-        int status = orders.tryFind(Search.all()).status();
-        management.projects().update(self.enabled(true));
-
-        check("status of the call with the disabled project: 401 or 403", () -> assertThat(status).isIn(401, 403));
+        try {
+            int status = orders.tryFind(Search.all()).status();
+            check("status of the call with the disabled project: 401 or 403", () -> assertThat(status).isIn(401, 403));
+        } finally {
+            management.projects().update(self.enabled(true));
+        }
     }
 
     @Test
@@ -153,11 +155,13 @@ class FixedIn3190Test {
     void a_date_without_milliseconds_is_accepted(TestProject project) {
         ApiResponse response = project.management().projects().tryCreate(Map.of(
                 "name", "e2e-date-" + System.nanoTime() % 100000, "enabled", true, "expirationDate", "2030-01-01T00:00:00Z"));
-        if (response.status() == 201) project.management().projects().delete(response.<Number>path("id"));
-
-        verifyAll(v -> v
-                .that("created: status", response.status(), 201)
-                .that("expirationDate", response.<String>path("expirationDate"), "2030-01-01T00:00:00.000Z"));
+        try {
+            verifyAll(v -> v
+                    .that("created: status", response.status(), 201)
+                    .that("expirationDate", response.<String>path("expirationDate"), "2030-01-01T00:00:00.000Z"));
+        } finally {
+            if (response.status() == 201) project.management().projects().delete(response.<Number>path("id"));
+        }
     }
 
     @Test
@@ -165,12 +169,14 @@ class FixedIn3190Test {
     void a_date_with_nanoseconds_is_not_moved(TestProject project) {
         ApiResponse response = project.management().projects().tryCreate(Map.of(
                 "name", "e2e-date-" + System.nanoTime() % 100000, "enabled", true, "expirationDate", "2030-01-01T00:00:00.123456789Z"));
-        if (response.status() == 201) project.management().projects().delete(response.<Number>path("id"));
-
-        // either refused, or the same moment (rounded to milliseconds)
-        if (response.status() != 400)
-            verify("expirationDate", response.<String>path("expirationDate"), "2030-01-01T00:00:00.123Z");
-        else
-            verify("refused: status", response.status(), 400);
+        try {
+            // either refused, or the same moment (rounded to milliseconds)
+            if (response.status() == 400)
+                verify("refused: status", response.status(), 400);
+            else
+                verify("expirationDate", response.<String>path("expirationDate"), "2030-01-01T00:00:00.123Z");
+        } finally {
+            if (response.status() == 201) project.management().projects().delete(response.<Number>path("id"));
+        }
     }
 }
