@@ -49,7 +49,7 @@ class AccessTest {
     }
 
     private static Bucket bucket(String name, Role role) {
-        return new Bucket().name(name).icon(new Icon().name("Storage")).roleId((short) role.id);
+        return new Bucket().name(name).icon(new Icon().name("storage")).roleId((short) role.id);
     }
 
     @Nested
@@ -142,7 +142,7 @@ class AccessTest {
             Settings admin = project.quietly(ADMIN).settings();
             Long robotId = admin.users().list().stream()
                     .filter(u -> u.username.equals(project.user(ROBOT).username())).findFirst().orElseThrow().id;
-            admin.buckets().create(new Bucket().name("robot-only").icon(new Icon().name("Storage")).usersIds(Set.of(robotId)));
+            admin.buckets().create(new Bucket().name("robot-only").icon(new Icon().name("storage")).usersIds(Set.of(robotId)));
 
             verify("status for the robot", project.as(ROBOT).bucket("robot-only", Card.class).tryFind(Search.all()).status(), 200);
             verify("status for the member", project.as(MEMBER).bucket("robot-only", Card.class).tryFind(Search.all()).status(), 404);

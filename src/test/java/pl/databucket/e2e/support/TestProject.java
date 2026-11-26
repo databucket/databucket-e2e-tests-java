@@ -67,7 +67,13 @@ public final class TestProject implements AutoCloseable {
                     call().body(obj("username", user.username(), "password", temporary, "newPassword", user.password())).expect(200));
             users.put(key, user);
         }
-        return new TestProject(superApi, projectId, name, users);
+        TestProject created = new TestProject(superApi, projectId, name, users);
+        // the icons of Databucket (Settings > Icons), the outlined one for the buckets of createBucket
+        for (Map<String, Object> icon : List.of(
+                obj("name", DatabucketIcons.OUTLINED_NAME, "structure", DatabucketIcons.OUTLINED),
+                obj("name", DatabucketIcons.FILLED_NAME, "structure", DatabucketIcons.FILLED)))
+            created.quietly(UserKey.ADMIN).post("/api/svg", call().body(icon).expect(201));
+        return created;
     }
 
     /** The management of all projects and users, as the SUPER user that made this project. */
@@ -114,7 +120,7 @@ public final class TestProject implements AutoCloseable {
         return new Api(key.key(), token, true);
     }
 
-    /** Creates a bucket every user of the project can use (access from AGENT up), with history. */
+    /** Creates a bucket every user of the project can use (access from AGENT up), with history and the outlined icon of Databucket. */
     public long createBucket(String name) {
         return createBucket(name, true, false);
     }
@@ -123,7 +129,7 @@ public final class TestProject implements AutoCloseable {
     public long createBucket(String name, boolean history, boolean protectedData) {
         ApiResponse response = quietly(UserKey.ADMIN).post("/api/buckets", call().body(obj(
                 "name", name,
-                "icon", obj("name", "Storage"),
+                "icon", DatabucketIcons.outlinedJson(),
                 "history", history,
                 "protectedData", protectedData,
                 "roleId", Role.AGENT.id

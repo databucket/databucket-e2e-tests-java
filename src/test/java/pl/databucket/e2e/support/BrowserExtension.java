@@ -25,7 +25,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Databucket URL as base URL. Playwright isn't thread-safe, so every thread running tests has its own Playwright and
  * browser, closed when the tests are over.
  * <p>
- * In the report: a screenshot of the end of every test, the Playwright trace of every test (open it at
+ * In the report: screenshots in the steps ({@link Screenshots}), the Playwright trace of every test (open it at
  * https://trace.playwright.dev or with {@code npx playwright show-trace}), a video of the failed ones.
  */
 public final class BrowserExtension implements ParameterResolver, AfterEachCallback {
@@ -52,7 +52,9 @@ public final class BrowserExtension implements ParameterResolver, AfterEachCallb
 
     @Override
     public Object resolveParameter(ParameterContext parameter, ExtensionContext context) {
-        return context.getStore(NAMESPACE).computeIfAbsent(Page.class, type -> newPage(), Page.class);
+        Page page = context.getStore(NAMESPACE).computeIfAbsent(Page.class, type -> newPage(), Page.class);
+        Screenshots.use(page);
+        return page;
     }
 
     private static Page newPage() {
@@ -74,12 +76,11 @@ public final class BrowserExtension implements ParameterResolver, AfterEachCallb
 
     @Override
     public void afterEach(ExtensionContext context) throws IOException {
+        Screenshots.clear();
         Page page = context.getStore(NAMESPACE).remove(Page.class, Page.class);
         if (page == null) return;
         BrowserContext browserContext = page.context();
         boolean failed = context.getExecutionException().isPresent();
-
-        attach("screenshot", "image/png", ".png", page.screenshot());
 
         Path trace = Files.createTempFile("e2e-trace", ".zip");
         browserContext.tracing().stop(new Tracing.StopOptions().setPath(trace));
@@ -93,10 +94,6 @@ public final class BrowserExtension implements ParameterResolver, AfterEachCallb
             Files.deleteIfExists(video);
         }
         Files.deleteIfExists(trace);
-    }
-
-    private static void attach(String name, String type, String extension, byte[] content) {
-        Allure.addAttachment(name, type, new java.io.ByteArrayInputStream(content), extension);
     }
 
     private static void attach(String name, String type, String extension, Path file) throws IOException {

@@ -18,7 +18,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static pl.databucket.e2e.support.Call.call;
 import static pl.databucket.e2e.support.Json.arr;
 import static pl.databucket.e2e.support.Json.obj;
-import static pl.databucket.e2e.support.Screenshots.screenshot;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
 import static pl.databucket.e2e.support.Verify.check;
@@ -77,8 +76,9 @@ class BucketDataGridTest {
 
         ui.addRow(obj("Customer", "Dave", "Status", "NEW"));
 
-        check("Dave is shown", () -> assertThat(ui.row("Dave")).isVisible());
-        screenshot(page, "row added");
+        verifyAll(v -> v
+                .check("Dave is shown", () -> assertThat(ui.row("Dave")).isVisible())
+                .check("pagination: 1-4 of 4", () -> assertThat(ui.pagination()).hasText("1-4 of 4")));
         Api member = project.as(MEMBER);
         ApiResponse found = member.post("/api/bucket/" + BUCKET + "/get?limit=10", call()
                 .body(obj("logic", obj("==", arr(obj("var", "$.customer"), "Dave"))))

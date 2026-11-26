@@ -13,7 +13,6 @@ import pl.databucket.e2e.support.UiSuite;
 import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
-import static pl.databucket.e2e.support.Screenshots.screenshot;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.Verify.verifyAll;
 
@@ -47,6 +46,5 @@ class LoginPageTest {
                 .check("the message says bad credentials",
                         () -> assertThat(page.getByText(Pattern.compile("bad credentials", Pattern.CASE_INSENSITIVE))).isVisible())
                 .check("still on the login page", () -> assertThat(page).hasURL(Pattern.compile("/login$"))));
-        screenshot(page, "error message");
     }
 }

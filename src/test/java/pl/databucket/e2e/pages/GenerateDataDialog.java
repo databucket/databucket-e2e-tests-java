@@ -3,7 +3,7 @@ package pl.databucket.e2e.pages;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
-import io.qameta.allure.Allure;
+import pl.databucket.e2e.support.Screenshots;
 
 import java.util.regex.Pattern;
 
@@ -55,15 +55,15 @@ public final class GenerateDataDialog {
     }
 
     public void setRows(int count) {
-        Allure.step("Rows: " + count, () -> rows().fill(String.valueOf(count)));
+        Screenshots.step("Rows: " + count, () -> rows().fill(String.valueOf(count)));
     }
 
     public void setText(String path, String text) {
-        Allure.step(path + ": " + text, () -> settings(path).fill(text));
+        Screenshots.step(path + ": " + text, () -> settings(path).fill(text));
     }
 
     public void addProperty(String path, String text) {
-        Allure.step("Add property " + path + ": " + text, () -> {
+        Screenshots.step("Add property " + path + ": " + text, () -> {
             dialog().locator("[aria-label='Add property'] button").click();
             Locator added = generators().last();
             added.locator("input[aria-label='Property path']").fill(path);
@@ -72,12 +72,12 @@ public final class GenerateDataDialog {
     }
 
     public void remove(String path) {
-        Allure.step("Remove property " + path, () ->
+        Screenshots.step("Remove property " + path, () ->
                 generator(path).locator("[aria-label='Remove'] button").click());
     }
 
     public void previewRows() {
-        Allure.step("Preview", () -> {
+        Screenshots.step("Preview", () -> {
             dialog().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Preview")).click();
             assertThat(preview()).isVisible();
         });
@@ -85,7 +85,7 @@ public final class GenerateDataDialog {
 
     /** Generates and waits until the dialog closes. */
     public void generate(int count) {
-        Allure.step("Generate " + count + " rows", () -> {
+        Screenshots.step("Generate " + count + " rows", () -> {
             dialog().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
                     .setName(Pattern.compile("^Generate " + count + " rows$"))).click();
             assertThat(dialog()).isHidden();
@@ -94,7 +94,7 @@ public final class GenerateDataDialog {
 
     /** Clicks Generate expecting a refusal shown in the dialog. */
     public void tryGenerate() {
-        Allure.step("Try to generate", () -> dialog().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
+        Screenshots.step("Try to generate", () -> dialog().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
                 .setName(Pattern.compile("^Generate"))).click());
     }
 }

@@ -21,7 +21,8 @@ import java.util.regex.Pattern;
  * then the test fails with all the failures in the message.
  * <p>
  * Right after an API call the verification goes into the step of that call, after its request / response;
- * otherwise (GUI tests, values computed by the test) it is a step of its own.
+ * otherwise (GUI tests, values computed by the test) it is a step of its own, in a GUI test with a screenshot of the
+ * page under the checks.
  * <pre>{@code
  * verify(orders.get(id).orElseThrow().properties(), new Order("Alice", "PAID", 10.5)); // field by field
  * verify("rows", page.rows().size(), 3);                                                // one value
@@ -191,6 +192,8 @@ public final class Verify {
         } else {
             // a step of the current step (the API call being made) or of the test
             StepResult verification = verificationStep(rows);
+            // in a GUI test: what was checked, under the checks (not the checks of the response of an API call)
+            if (!inCurrentStep) Screenshots.attachTo(verification, "screen");
             AllureLifecycle lifecycle = Allure.getLifecycle();
             if (Objects.equals(lifecycle.getCurrentTestCaseOrStep(), lifecycle.getCurrentTestCase()))
                 lifecycle.updateTestCase(test -> test.getSteps().add(verification));
