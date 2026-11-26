@@ -94,9 +94,13 @@ Access, MCP, Fixed bugs) > class (`@DisplayName`) > test.
   highlighted JSON bodies. The view is named by `call().name("GET data by rules")`, "request / response" otherwise. A
   Copy button copies the request and the response, with or without headers, as plain text. Tokens and passwords are
   masked, also in what is copied.
-- GUI tests: the actions of the page objects are steps ("Open bucket orders", "Search \"Bob\""); a screenshot at the
-  end of every test (and named ones from `screenshot(page, "...")`), the Playwright trace of every test (download it and
-  open it at https://trace.playwright.dev) and a video of the failed ones.
+- GUI tests: the actions of the page objects are steps ("Open bucket orders", "Search \"Bob\"", written with
+  `Screenshots.step`), each with a screenshot of the page when it ends (also when it fails); a verification of the GUI
+  has a screenshot under its checks; `Screenshots.screenshot("menu")` adds one more inside a step (e.g. of an open
+  menu). At the end of the test: the Playwright trace (download it and open it at https://trace.playwright.dev) and a
+  video of the failed ones.
+- Every test project has two icons of Databucket (Settings > Icons): `databucket-outlined`, the icon of the buckets
+  made by `TestProject.createBucket`, and `databucket-filled` (`support/DatabucketIcons`).
 
 ## Selectors
 
