@@ -27,6 +27,9 @@ import static pl.databucket.e2e.support.Json.obj;
 import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** Generating random rows on the server: {@code POST /api/bucket/{bucket}/generate} (Databucket 3.20.0+). */
 @ApiSuite
@@ -53,14 +56,16 @@ class GenerateDataTest {
 
         Generated generated = users.generate(obj("fields", EMAILS, "count", 5));
 
-        assertThat(generated.inserted()).isEqualTo(5);
-        assertThat(generated.firstN()).isEqualTo(lastId + 1);
-        assertThat(generated.lastN()).isEqualTo(lastId + 5);
-        assertThat(generated.rows()).hasSize(3);
+        verifyAll(v -> v
+                .that("inserted", generated.inserted(), 5)
+                .that("firstN", generated.firstN(), lastId + 1)
+                .that("lastN", generated.lastN(), lastId + 5)
+                .that("rows: size", generated.rows().size(), 3));
         List<Map> all = users.properties(Search.all().sort("id"));
-        assertThat(all).hasSize(7);
-        assertThat(all.subList(2, 7)).extracting(row -> row.get("email")).containsExactlyElementsOf(
-                LongStream.rangeClosed(lastId + 1, lastId + 5).mapToObj(n -> "user-" + n + "@example.com").toList());
+        verifyAll(v -> v
+                .that("rows: size", all.size(), 7)
+                .that("emails of the generated rows", all.subList(2, 7).stream().map(row -> row.get("email")).toList(),
+                        LongStream.rangeClosed(lastId + 1, lastId + 5).mapToObj(n -> "user-" + n + "@example.com").toList()));
     }
 
     @Test
@@ -69,8 +74,11 @@ class GenerateDataTest {
         Generated first = users.generate(obj("fields", EMAILS, "count", 3));
         Generated second = users.generate(obj("fields", EMAILS, "count", 3));
 
-        assertThat(second.firstN()).isEqualTo(first.lastN() + 1);
-        assertThat(users.properties(Search.all())).extracting(row -> row.get("email")).doesNotHaveDuplicates().hasSize(6);
+        verify("second: firstN", second.firstN(), first.lastN() + 1);
+        List<Map> all = users.properties(Search.all());
+        verifyAll(v -> v
+                .that("rows: size", all.size(), 6)
+                .check("emails without duplicates", () -> assertThat(all).extracting(row -> row.get("email")).doesNotHaveDuplicates()));
     }
 
     @Test
@@ -78,9 +86,9 @@ class GenerateDataTest {
     void start_n() {
         Generated generated = users.generate(obj("fields", obj("$.login", "tester-{n}"), "count", 2, "startN", 100));
 
-        assertThat(generated.firstN()).isEqualTo(100);
-        assertThat(users.properties(Search.all().sort("id"))).extracting(row -> row.get("login"))
-                .containsExactly("tester-100", "tester-101");
+        verify("firstN", generated.firstN(), 100);
+        List<Map> all = users.properties(Search.all().sort("id"));
+        verify("logins", all.stream().map(row -> row.get("login")).toList(), List.of("tester-100", "tester-101"));
     }
 
     @Test
@@ -99,23 +107,34 @@ class GenerateDataTest {
                 "$.active", true)));
 
         List<Map> rows = users.properties(Search.all());
-        assertThat(rows).hasSize(50).allSatisfy(row -> {
-            assertThat((String) row.get("firstName")).isNotBlank();
-            assertThat((String) row.get("phone")).matches("\\d{3}-\\d{3}");
-            assertThat(((Number) row.get("age")).intValue()).isBetween(18, 90);
-            BigDecimal balance = new BigDecimal(row.get("balance").toString());
-            assertThat(balance).isBetween(BigDecimal.ZERO, BigDecimal.valueOf(100));
-            assertThat(balance.scale()).isLessThanOrEqualTo(2);
-            assertThat(row.get("status")).isIn("active", "blocked");
-            assertThat(LocalDate.parse((String) row.get("birthDate")))
-                    .isBetween(LocalDate.of(1990, 1, 1), LocalDate.of(1990, 12, 31));
-            assertThat(Instant.parse((String) row.get("lastLogin")))
-                    .isBetween(Instant.parse("2025-01-01T00:00:00Z"), Instant.parse("2025-01-31T23:59:59Z"));
-            assertThat((String) ((Map) row.get("address")).get("city")).isNotBlank();
-            assertThat(row.get("type")).isEqualTo("customer");
-            assertThat(row.get("active")).isEqualTo(true);
-        });
-        assertThat(rows).extracting(row -> row.get("status")).contains("active", "blocked");
+        verifyAll(v -> v
+                .that("rows: size", rows.size(), 50)
+                .check("firstName: not blank", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat((String) row.get("firstName")).isNotBlank()))
+                .check("phone: ###-###", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat((String) row.get("phone")).matches("\\d{3}-\\d{3}")))
+                .check("age: 18..90", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat(((Number) row.get("age")).intValue()).isBetween(18, 90)))
+                .check("balance: 0..100", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat(new BigDecimal(row.get("balance").toString())).isBetween(BigDecimal.ZERO, BigDecimal.valueOf(100))))
+                .check("balance: at most 2 decimals", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat(new BigDecimal(row.get("balance").toString()).scale()).isLessThanOrEqualTo(2)))
+                .check("status: active or blocked", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat(row.get("status")).isIn("active", "blocked")))
+                .check("birthDate: in 1990", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat(LocalDate.parse((String) row.get("birthDate")))
+                                .isBetween(LocalDate.of(1990, 1, 1), LocalDate.of(1990, 12, 31))))
+                .check("lastLogin: in January 2025", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat(Instant.parse((String) row.get("lastLogin")))
+                                .isBetween(Instant.parse("2025-01-01T00:00:00Z"), Instant.parse("2025-01-31T23:59:59Z"))))
+                .check("address.city: not blank", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat((String) ((Map) row.get("address")).get("city")).isNotBlank()))
+                .check("type: customer", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat(row.get("type")).isEqualTo("customer")))
+                .check("active: true", () -> assertThat(rows).allSatisfy(row ->
+                        assertThat(row.get("active")).isEqualTo(true)))
+                .check("both statuses used", () -> assertThat(rows).extracting(row -> row.get("status"))
+                        .contains("active", "blocked")));
     }
 
     @Test
@@ -126,12 +145,13 @@ class GenerateDataTest {
         users.generate(obj("fields", EMAILS, "count", 4, "tagId", tag.id, "reserved", true));
 
         List<DataRow<Map>> rows = users.find(Search.all().limit(100)).data();
-        assertThat(rows).hasSize(4).allSatisfy(row -> {
-            assertThat(row.tagId()).isEqualTo(tag.id);
-            assertThat(row.reserved()).isTrue();
-            assertThat(row.owner()).isEqualTo(project.user(ROBOT).username());
-            assertThat(row.createdBy()).isEqualTo(project.user(ROBOT).username());
-        });
+        String robot = project.user(ROBOT).username();
+        verifyAll(v -> v
+                .that("rows: size", rows.size(), 4)
+                .check("tagId: the tag", () -> assertThat(rows).allSatisfy(row -> assertThat(row.tagId()).isEqualTo(tag.id)))
+                .check("reserved", () -> assertThat(rows).allSatisfy(row -> assertThat(row.reserved()).isTrue()))
+                .check("owner: the robot", () -> assertThat(rows).allSatisfy(row -> assertThat(row.owner()).isEqualTo(robot)))
+                .check("createdBy: the robot", () -> assertThat(rows).allSatisfy(row -> assertThat(row.createdBy()).isEqualTo(robot))));
     }
 
     @Test
@@ -139,10 +159,12 @@ class GenerateDataTest {
     void preview_inserts_nothing() {
         Generated preview = users.previewGenerated(obj("fields", EMAILS, "count", 5000));
 
-        assertThat(preview.inserted()).isZero();
-        assertThat(preview.rows()).hasSize(10);
-        assertThat(preview.lastN()).isEqualTo(preview.firstN() + 9);
-        assertThat(users.count(Search.all())).isZero();
+        verifyAll(v -> v
+                .that("inserted", preview.inserted(), 0)
+                .that("rows: size", preview.rows().size(), 10)
+                .that("lastN", preview.lastN(), preview.firstN() + 9));
+        long count = users.count(Search.all());
+        verify("rows in the bucket", count, 0);
     }
 
     @Test
@@ -154,7 +176,9 @@ class GenerateDataTest {
         Generated preview = users.previewGenerated(request);
         users.generate(request);
 
-        assertThat(users.properties(Search.all().sort("id")).subList(0, 10)).isEqualTo(preview.rows());
+        List<Map> inserted = users.properties(Search.all().sort("id"));
+        verifyAll(v -> v
+                .that("first 10 rows: as in the preview", inserted.subList(0, 10), preview.rows()));
     }
 
     @Test
@@ -162,8 +186,9 @@ class GenerateDataTest {
     void agent_may_generate(TestProject project) {
         Generated generated = project.as(AGENT).bucket(BUCKET, Map.class).generate(obj("fields", EMAILS, "count", 2));
 
-        assertThat(generated.inserted()).isEqualTo(2);
-        assertThat(users.count(Search.all())).isEqualTo(2);
+        verify("inserted", generated.inserted(), 2);
+        long count = users.count(Search.all());
+        verify("rows in the bucket", count, 2);
     }
 
     @ParameterizedTest(name = "count {0}")
@@ -172,9 +197,11 @@ class GenerateDataTest {
     void refuses_the_count(int count) {
         ApiResponse response = users.tryGenerate(obj("fields", EMAILS, "count", count));
 
-        assertThat(response.status()).isEqualTo(400);
-        assertThat(response.<String>path("message")).contains("1..10000");
-        assertThat(users.count(Search.all())).isZero();
+        verifyAll(v -> v
+                .that("status", response.status(), 400)
+                .check("message names 1..10000", () -> assertThat(response.<String>path("message")).contains("1..10000")));
+        long rows = users.count(Search.all());
+        verify("rows in the bucket", rows, 0);
     }
 
     @Test
@@ -183,9 +210,11 @@ class GenerateDataTest {
         ApiResponse response = users.tryGenerate(obj("count", 5, "fields", obj(
                 "$.email", "user-{n}@example.com", "$.age", obj("number", arr(18)))));
 
-        assertThat(response.status()).isEqualTo(400);
-        assertThat(response.<String>path("message")).contains("$.age");
-        assertThat(users.count(Search.all())).isZero();
+        verifyAll(v -> v
+                .that("status", response.status(), 400)
+                .check("message names $.age", () -> assertThat(response.<String>path("message")).contains("$.age")));
+        long rows = users.count(Search.all());
+        verify("rows in the bucket", rows, 0);
     }
 
     @Test
@@ -193,8 +222,9 @@ class GenerateDataTest {
     void refuses_no_fields() {
         ApiResponse response = users.tryGenerate(obj("count", 5));
 
-        assertThat(response.status()).isEqualTo(400);
-        assertThat(response.<String>path("message")).contains("at least one field");
+        verifyAll(v -> v
+                .that("status", response.status(), 400)
+                .check("message: at least one field", () -> assertThat(response.<String>path("message")).contains("at least one field")));
     }
 
     @Test
@@ -202,9 +232,12 @@ class GenerateDataTest {
     void refuses_an_unknown_tag() {
         ApiResponse response = users.tryGenerate(obj("fields", EMAILS, "count", 3, "tagId", 999_999_999));
 
-        assertThat(response.status()).isEqualTo(400);
-        assertThat(response.<String>path("message")).contains("tag").contains("doesn't exist");
-        assertThat(users.count(Search.all())).isZero();
+        verifyAll(v -> v
+                .that("status", response.status(), 400)
+                .check("message: the tag doesn't exist", () -> assertThat(response.<String>path("message"))
+                        .contains("tag").contains("doesn't exist")));
+        long rows = users.count(Search.all());
+        verify("rows in the bucket", rows, 0);
     }
 
     @Test
@@ -212,6 +245,6 @@ class GenerateDataTest {
         ApiResponse response = project.as(ROBOT).bucket("no-such-bucket", Map.class)
                 .tryGenerate(obj("fields", EMAILS, "count", 1));
 
-        assertThat(response.status()).isEqualTo(404);
+        verify("status", response.status(), 404);
     }
 }
