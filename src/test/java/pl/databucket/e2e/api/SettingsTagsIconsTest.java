@@ -28,7 +28,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
 @Area(Area.SETTINGS)
-@DisplayName("Settings: tags and icons")
+@DisplayName("Tags and icons")
 class SettingsTagsIconsTest {
 
     private static final String FLAG = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 16\">"

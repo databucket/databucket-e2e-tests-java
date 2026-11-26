@@ -43,7 +43,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 /** Settings that describe the data: classes, enums, columns, filters, tasks. */
 @ApiSuite
 @Area(Area.SETTINGS)
-@DisplayName("Settings: classes, enums, columns, filters, tasks")
+@DisplayName("Classes, enums, columns, filters, tasks")
 class SettingsStructureTest {
 
     private Settings settings;

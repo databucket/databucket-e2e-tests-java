@@ -33,7 +33,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 /** The MCP tools of 3.21.0 and 3.22.0: running a saved task (run_task) and the activity of the project (get_activity). */
 @ApiSuite
 @Area(Area.MCP)
-@DisplayName("MCP server: tasks and activity")
+@DisplayName("Tasks and activity")
 class McpTasksTest {
 
     private static final String BUCKET = "orders";

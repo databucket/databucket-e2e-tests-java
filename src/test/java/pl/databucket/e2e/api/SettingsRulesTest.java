@@ -22,7 +22,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 /** Rules every kind of object in the settings follows. */
 @ApiSuite
 @Area(Area.SETTINGS)
-@DisplayName("Settings: common rules")
+@DisplayName("Common rules")
 class SettingsRulesTest {
 
     /** The settings with a name of at most 30 characters, and a valid object of each. */

@@ -30,7 +30,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 /** The dialog "Generate data" of the data grid (Databucket 3.20.0+). */
 @UiSuite
 @Area(Area.DATA)
-@DisplayName("Generate data dialog")
+@DisplayName("Generate data dialog (GUI)")
 @SuppressWarnings({"rawtypes", "unchecked"})
 class GenerateDataDialogTest {
 

@@ -45,7 +45,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 /** Settings that decide who sees what: groups, teams, views, the users of the project and their roles. */
 @ApiSuite
 @Area(Area.SETTINGS)
-@DisplayName("Settings: groups, teams, views, users")
+@DisplayName("Groups, teams, views, users")
 class SettingsAccessTest {
 
     record Login(String login) {

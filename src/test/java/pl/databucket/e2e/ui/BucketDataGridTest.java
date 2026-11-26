@@ -26,7 +26,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @UiSuite
 @Area(Area.DATA)
-@DisplayName("Bucket data grid")
+@DisplayName("Bucket data grid (GUI)")
 class BucketDataGridTest {
 
     private static final String BUCKET = "orders";

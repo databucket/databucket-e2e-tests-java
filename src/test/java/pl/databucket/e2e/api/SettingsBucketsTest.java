@@ -29,7 +29,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
 @Area(Area.SETTINGS)
-@DisplayName("Settings: buckets")
+@DisplayName("Buckets")
 class SettingsBucketsTest {
 
     record No(int no) {

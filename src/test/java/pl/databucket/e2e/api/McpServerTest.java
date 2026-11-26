@@ -26,7 +26,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 /** The MCP server for AI agents (/mcp, stateless streamable HTTP): JSON-RPC calls with the user's token. */
 @ApiSuite
 @Area(Area.MCP)
-@DisplayName("MCP server")
+@DisplayName("Server")
 class McpServerTest {
 
     private static final String BUCKET = "accounts";
