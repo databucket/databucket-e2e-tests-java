@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Databucket E2E reports</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --link: #0969da; --bg: #ffffff; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --link: #4493f8; --bg: #0d1117; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 24px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; }
+  a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+  .ok { color: #1a7f37; } @media (prefers-color-scheme: dark) { .ok { color: #3fb950; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Databucket E2E reports</h1>
+  <p>Allure reports of the end-to-end tests in <a href="https://github.com/databucket/databucket-e2e-tests-java">databucket-e2e-tests-java</a>,
+    run against the docker compose of databucket-server.</p>
+  <table>
+    <thead><tr><th>Date</th><th>Tests</th><th>Databucket</th><th>Result</th><th>Report</th></tr></thead>
+    <tbody>
+      <tr><td>2026-11-26</td><td>API</td><td>3.26.0</td><td class="ok">233 / 233 passed</td><td><a href="reports/2026-11-26/api/">open</a></td></tr>
+      <tr><td>2026-11-26</td><td>WWW (GUI)</td><td>3.26.2</td><td class="ok">32 / 32 passed</td><td><a href="reports/2026-11-26/www/">open</a></td></tr>
+    </tbody>
+  </table>
+</main>
+</body>
+</html>
