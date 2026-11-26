@@ -18,6 +18,8 @@ import static pl.databucket.e2e.client.Rules.logic;
 import static pl.databucket.e2e.client.Rules.var;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Call.call;
+import static pl.databucket.e2e.support.Json.obj;
 
 @ApiSuite
 @DisplayName("Data API")
@@ -111,5 +113,21 @@ class DataApiTest {
         orders.delete(id);
         // a row that doesn't exist (any more) comes back as an empty list
         assertThat(orders.get(id)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("still changes rows with PUT, the method before PATCH (by ids and by rules)")
+    void changes_rows_with_the_old_put(TestProject project) {
+        BucketApi<Order> orders = project.as(MEMBER).bucket(BUCKET, Order.class);
+        long id = orders.insert(new Order("Alice", "NEW")).id();
+
+        project.as(MEMBER).put("/api/bucket/" + BUCKET + "/" + id,
+                call().body(obj("propertiesToSet", obj("$.status", "PAID"))).expect(200));
+        assertThat(orders.get(id).orElseThrow().properties()).isEqualTo(new Order("Alice", "PAID"));
+
+        project.as(MEMBER).put("/api/bucket/" + BUCKET,
+                call().body(obj("propertiesToSet", obj("$.status", "SHIPPED"), "rules", java.util.List.of(java.util.List.of("id", "==", id))))
+                        .expect(200));
+        assertThat(orders.get(id).orElseThrow().properties()).isEqualTo(new Order("Alice", "SHIPPED"));
     }
 }
