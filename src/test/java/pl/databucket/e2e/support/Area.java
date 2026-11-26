@@ -9,8 +9,7 @@ import java.lang.annotation.Target;
 
 /**
  * The area of the application a test class checks: the top level of the tree of the report (Suites), with the
- * classes under it. API and GUI tests of an area are together; they are still told apart by their tags (gradle
- * apiTest / uiTest).
+ * classes under it. The API and the WWW (GUI) tests have separate reports (gradle -Ptype=api / -Ptype=www).
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

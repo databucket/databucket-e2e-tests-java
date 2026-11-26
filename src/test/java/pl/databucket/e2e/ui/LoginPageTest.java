@@ -19,7 +19,7 @@ import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @UiSuite
 @Area(Area.ACCESS)
-@DisplayName("Login page (GUI)")
+@DisplayName("Login page")
 class LoginPageTest {
 
     @Test

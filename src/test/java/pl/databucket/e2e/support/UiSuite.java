@@ -9,12 +9,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * A class of GUI tests: tag "ui" (gradle uiTest), {@link TestProject} and
+ * A class of GUI tests: tag "www" (gradle test -Ptype=www, wwwTest; its own report), {@link TestProject} and
  * {@link com.microsoft.playwright.Page} parameters for every test.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@Tag("ui")
+@Tag("www")
 @ExtendWith({ProjectExtension.class, BrowserExtension.class})
 public @interface UiSuite {
 }

@@ -9,7 +9,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * A class of API tests: tag "api" (gradle apiTest), a {@link TestProject}
+ * A class of API tests: tag "api" (gradle test -Ptype=api, apiTest; its own report), a {@link TestProject}
  * parameter for every test.
  */
 @Retention(RetentionPolicy.RUNTIME)
