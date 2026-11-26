@@ -22,7 +22,7 @@ public final class Env {
     private Env() {
     }
 
-    private static String value(String property, String variable, String defaultValue) {
+    static String value(String property, String variable, String defaultValue) {
         String value = System.getProperty("databucket." + property);
         if (value == null || value.isBlank()) value = System.getenv(variable);
         return value == null || value.isBlank() ? defaultValue : value;

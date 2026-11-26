@@ -9,15 +9,20 @@ import pl.databucket.e2e.client.Change;
 import pl.databucket.e2e.client.Search;
 import pl.databucket.e2e.model.HistoryPage;
 import pl.databucket.e2e.model.RowHistory;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static pl.databucket.e2e.client.Rules.logic;
 import static pl.databucket.e2e.client.Rules.var;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("Data history")
 class DataHistoryTest {
 
@@ -38,8 +43,11 @@ class DataHistoryTest {
         long id = orders.insert(new Order("NEW", null)).id();
         orders.update(Change.set("$.status", "PAID"), id);
 
-        assertThat(orders.history(id)).hasSize(2)
-                .extracting(RowHistory::modifiedBy).containsOnly(project.user(ROBOT).username());
+        List<RowHistory> history = orders.history(id);
+        verifyAll(v -> v
+                .that("history: size", history.size(), 2)
+                .check("modified by the robot", () -> assertThat(history).extracting(RowHistory::modifiedBy)
+                        .containsOnly(project.user(ROBOT).username())));
     }
 
     @Test
@@ -52,7 +60,9 @@ class DataHistoryTest {
         HistoryPage<Order> search = orders.searchHistory(Search.all()
                 .logic(logic("==", var("$.customer"), "Alice")).limit(10).withProperties());
 
-        assertThat(search.total()).isEqualTo(2);
-        assertThat(search.entries()).extracting(HistoryPage.Entry::dataId).containsOnly(paid);
+        verifyAll(v -> v
+                .that("total", search.total(), 2)
+                .check("entries of Alice's row only", () -> assertThat(search.entries())
+                        .extracting(HistoryPage.Entry::dataId).containsOnly(paid)));
     }
 }

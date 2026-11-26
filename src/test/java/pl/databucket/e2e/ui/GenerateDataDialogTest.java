@@ -10,6 +10,7 @@ import pl.databucket.e2e.model.DataRow;
 import pl.databucket.e2e.pages.GenerateDataDialog;
 import pl.databucket.e2e.pages.ProjectPage;
 import pl.databucket.e2e.support.TestProject;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.UiSuite;
 
 import java.util.List;
@@ -22,9 +23,13 @@ import static pl.databucket.e2e.support.Json.obj;
 import static pl.databucket.e2e.support.Screenshots.screenshot;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** The dialog "Generate data" of the data grid (Databucket 3.20.0+). */
 @UiSuite
+@Area(Area.DATA)
 @DisplayName("Generate data dialog")
 @SuppressWarnings({"rawtypes", "unchecked"})
 class GenerateDataDialogTest {
@@ -52,12 +57,18 @@ class GenerateDataDialogTest {
         ui.openAs(project, MEMBER);
 
         ui.openBucket(BUCKET);
-        assertThat(ui.importExportMenu()).contains("Import CSV…", "Generate data…");
-        assertThat(ui.importExportButton()).hasAccessibleName("Import / Export / Generate");
+        verifyAll(v -> v
+                .check("the menu offers Import CSV and Generate data",
+                        () -> assertThat(ui.importExportMenu()).contains("Import CSV…", "Generate data…"))
+                .check("the button is Import / Export / Generate",
+                        () -> assertThat(ui.importExportButton()).hasAccessibleName("Import / Export / Generate")));
 
         ui.openBucket("orders");
-        assertThat(ui.importExportMenu()).contains("Import CSV…").doesNotContain("Generate data…");
-        assertThat(ui.importExportButton()).hasAccessibleName("Import / Export");
+        verifyAll(v -> v
+                .check("the menu offers Import CSV but not Generate data",
+                        () -> assertThat(ui.importExportMenu()).contains("Import CSV…").doesNotContain("Generate data…"))
+                .check("the button is Import / Export",
+                        () -> assertThat(ui.importExportButton()).hasAccessibleName("Import / Export")));
     }
 
     @Test
@@ -69,30 +80,35 @@ class GenerateDataDialogTest {
 
         GenerateDataDialog dialog = ui.openGenerateData();
 
-        assertThat(dialog.generators()).hasCount(3);
-        assertThat(dialog.settings("$.email")).hasValue("user-{n}@example.com");
-        assertThat(dialog.settings("$.firstName")).hasValue("#{Name.firstName}");
-        assertThat(dialog.settings("$.city")).hasValue("#{Address.city}");
+        verifyAll(v -> v
+                .check("3 generators", () -> assertThat(dialog.generators()).hasCount(3))
+                .check("$.email: user-{n}@example.com", () -> assertThat(dialog.settings("$.email")).hasValue("user-{n}@example.com"))
+                .check("$.firstName: #{Name.firstName}", () -> assertThat(dialog.settings("$.firstName")).hasValue("#{Name.firstName}"))
+                .check("$.city: #{Address.city}", () -> assertThat(dialog.settings("$.city")).hasValue("#{Address.city}")));
 
         dialog.previewRows();
-        assertThat(dialog.preview().locator("thead")).containsText("E-mail");
-        assertThat(dialog.preview().locator("tbody tr")).hasCount(10);
-        assertThat(dialog.preview().locator("tbody tr").first()).containsText("user-1@example.com");
+        verifyAll(v -> v
+                .check("the preview has the column E-mail", () -> assertThat(dialog.preview().locator("thead")).containsText("E-mail"))
+                .check("the preview has 10 rows", () -> assertThat(dialog.preview().locator("tbody tr")).hasCount(10))
+                .check("the first row has user-1@example.com",
+                        () -> assertThat(dialog.preview().locator("tbody tr").first()).containsText("user-1@example.com")));
         screenshot(page, "preview");
-        assertThat(people(project).count(Search.all())).isZero();
+        verify("count", people(project).count(Search.all()), 0);
 
         dialog.setRows(25);
         dialog.generate(25);
 
-        assertThat(ui.pagination()).containsText("of 25");
+        check("the grid shows 25 rows", () -> assertThat(ui.pagination()).containsText("of 25"));
         List<DataRow<Map>> rows = people(project).find(Search.all().limit(100)).data();
-        assertThat(rows).hasSize(25).allSatisfy(row -> {
-            assertThat(row.createdBy()).isEqualTo(project.user(MEMBER).username());
-            assertThat(row.reserved()).isFalse();
-            assertThat((String) row.properties().get("firstName")).isNotBlank();
-            assertThat((String) row.properties().get("city")).isNotBlank();
-        });
-        assertThat(rows).extracting(row -> row.properties().get("email")).doesNotHaveDuplicates();
+        verifyAll(v -> v
+                .that("rows: size", rows.size(), 25)
+                .check("every row: created by the member, free, with a first name and a city", () -> assertThat(rows).allSatisfy(row -> {
+                    assertThat(row.createdBy()).isEqualTo(project.user(MEMBER).username());
+                    assertThat(row.reserved()).isFalse();
+                    assertThat((String) row.properties().get("firstName")).isNotBlank();
+                    assertThat((String) row.properties().get("city")).isNotBlank();
+                }))
+                .check("no e-mail twice", () -> assertThat(rows).extracting(row -> row.properties().get("email")).doesNotHaveDuplicates()));
     }
 
     @Test
@@ -109,10 +125,14 @@ class GenerateDataDialogTest {
         dialog.setRows(3);
         dialog.generate(3);
 
-        assertThat(people(project).properties(Search.all().sort("id"))).containsExactly(
+        List<Map> expected = List.of(
                 Map.of("email", "user-1@example.com", "firstName", "Anna", "code", "ID-1"),
                 Map.of("email", "user-2@example.com", "firstName", "Anna", "code", "ID-2"),
                 Map.of("email", "user-3@example.com", "firstName", "Anna", "code", "ID-3"));
+        List<Map> properties = people(project).properties(Search.all().sort("id"));
+        verifyAll(v -> v
+                .that("properties", properties, expected)
+                .check("no other properties (city removed)", () -> assertThat(properties).containsExactlyElementsOf(expected)));
     }
 
     @Test
@@ -126,10 +146,12 @@ class GenerateDataDialogTest {
         dialog.setText("$.city", "#{NoSuchProvider.city}");
         dialog.tryGenerate();
 
-        assertThat(dialog.error()).containsText("Nothing has been generated");
-        assertThat(dialog.error()).containsText("$.city");
-        assertThat(dialog.dialog()).isVisible();
+        verifyAll(v -> v
+                .check("the error says nothing has been generated",
+                        () -> assertThat(dialog.error()).containsText("Nothing has been generated"))
+                .check("the error names $.city", () -> assertThat(dialog.error()).containsText("$.city"))
+                .check("the dialog stays open", () -> assertThat(dialog.dialog()).isVisible()));
         screenshot(page, "refused");
-        assertThat(people(project).count(Search.all())).isZero();
+        verify("count", people(project).count(Search.all()), 0);
     }
 }

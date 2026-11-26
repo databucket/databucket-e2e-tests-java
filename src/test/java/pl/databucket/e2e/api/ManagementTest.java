@@ -17,6 +17,7 @@ import pl.databucket.e2e.model.SignIn;
 import pl.databucket.e2e.model.Tag;
 import pl.databucket.e2e.support.Api;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Env;
 import pl.databucket.e2e.support.Role;
@@ -35,9 +36,13 @@ import static pl.databucket.e2e.support.Call.call;
 import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** The management of all projects and users (SUPER). Projects made here are removed, users disabled. */
 @ApiSuite
+@Area(Area.MANAGEMENT)
 @DisplayName("Management")
 class ManagementTest {
 
@@ -87,18 +92,19 @@ class ManagementTest {
         ManagedUser usable(String username, Role role, Set<Integer> projects, String password) {
             ManagedUser user = create(new ManagedUser().username(username).enabled(true)
                     .rolesIds(Set.of((short) role.id)).projectsIds(projects));
-            management.resetPassword(username, "tmp-" + password);
+            verify("status", management.resetPassword(username, "tmp-" + password).status(), 200);
             AuthResponse first = signIn(username, "tmp-" + password, null).as(AuthResponse.class);
-            assertThat(first.changePassword()).isTrue();
-            new Api(username).withToken(first.token()).settings().changePassword(username, "tmp-" + password, password);
+            verify("changePassword", first.changePassword(), true);
+            verify("status", new Api(username).withToken(first.token()).settings()
+                    .changePassword(username, "tmp-" + password, password).status(), 200);
             return user;
         }
 
         @Override
         public void close() {
             for (ManagedUser user : users)
-                management.users().tryUpdate(new ManagedUser().username(user.username).enabled(false)
-                        .rolesIds(user.rolesIds).projectsIds(Set.of()));
+                verify("disabled: status", management.users().tryUpdate(new ManagedUser().username(user.username)
+                        .enabled(false).rolesIds(user.rolesIds).projectsIds(Set.of())).status(), 200);
         }
     }
 
@@ -116,21 +122,24 @@ class ManagementTest {
             Management management = project.management();
             String name = unique("e2e-m-");
             try (TempProject temp = TempProject.create(management, new ManagedProject().name(name).description("made by a test").enabled(true))) {
-                assertThat(temp.project().empty).isTrue();
-                assertThat(management.projects().list()).extracting(p -> p.name).contains(name);
+                verify("empty", temp.project().empty, true);
+                List<String> names = management.projects().list().stream().map(p -> p.name).toList();
+                check("projects: contain the new one", () -> assertThat(names).contains(name));
 
                 ManagedProject changed = management.projects().update(temp.project().description("changed").publicVisible(true));
 
-                assertThat(changed.description).isEqualTo("changed");
-                assertThat(changed.publicVisible).isTrue();
+                verifyAll(v -> v
+                        .that("description", changed.description, "changed")
+                        .that("publicVisible", changed.publicVisible, true));
             }
-            assertThat(management.projects().list()).extracting(p -> p.name).doesNotContain(name);
+            List<String> after = management.projects().list().stream().map(p -> p.name).toList();
+            check("projects: without the removed one", () -> assertThat(after).doesNotContain(name));
         }
 
         @Test
         void a_project_name_has_at_most_30_characters(TestProject project) {
-            assertThat(project.management().projects().tryCreate(new ManagedProject().name("x".repeat(31)).enabled(true)).status())
-                    .isEqualTo(400);
+            verify("status", project.management().projects().tryCreate(new ManagedProject().name("x".repeat(31)).enabled(true))
+                    .status(), 400);
         }
 
         @Test
@@ -143,12 +152,12 @@ class ManagementTest {
 
             Map<String, Integer> content = management.content((int) project.id());
 
-            assertThat(content).containsEntry("Buckets", 1).containsEntry("Data rows", 2)
-                    .containsEntry("Tags", 1).containsEntry("Classes", 1);
+            verify("content", content, Map.of("Buckets", 1, "Data rows", 2, "Tags", 1, "Classes", 1));
 
             management.clear((int) project.id());
-            assertThat(management.content((int) project.id()).values()).containsOnly(0);
-            assertThat(project.as(ROBOT).bucket("orders", Login.class).tryFind(Search.all()).status()).isEqualTo(404);
+            Map<String, Integer> cleared = management.content((int) project.id());
+            check("content: all 0", () -> assertThat(cleared.values()).containsOnly(0));
+            verify("data: status", project.as(ROBOT).bucket("orders", Login.class).tryFind(Search.all()).status(), 404);
         }
 
         @Test
@@ -157,8 +166,8 @@ class ManagementTest {
 
             ApiResponse response = project.management().projects().tryDelete(project.id());
 
-            assertThat(response.status()).isEqualTo(409);
-            assertThat(project.as(ROBOT).bucket("orders", Login.class).tryFind(Search.all()).status()).isEqualTo(200);
+            verify("status", response.status(), 409);
+            verify("data: status", project.as(ROBOT).bucket("orders", Login.class).tryFind(Search.all()).status(), 200);
         }
 
         @Test
@@ -167,11 +176,14 @@ class ManagementTest {
             ManagedProject self = management.projects().list().stream().filter(p -> p.id == project.id()).findFirst().orElseThrow();
 
             management.projects().update(self.enabled(false));
-            ApiResponse response = signIn(project.user(MEMBER).username(), project.user(MEMBER).password(), (int) project.id());
-            management.projects().update(self.enabled(true));
-
-            assertThat(response.status()).isEqualTo(403);
-            assertThat(response.<String>path("message")).isEqualTo("The project is disabled!");
+            try {
+                ApiResponse response = signIn(project.user(MEMBER).username(), project.user(MEMBER).password(), (int) project.id());
+                verifyAll(v -> v
+                        .that("status", response.status(), 403)
+                        .that("message", response.<String>path("message"), "The project is disabled!"));
+            } finally {
+                management.projects().update(self.enabled(true));
+            }
         }
 
         @Test
@@ -180,11 +192,14 @@ class ManagementTest {
             ManagedProject self = management.projects().list().stream().filter(p -> p.id == project.id()).findFirst().orElseThrow();
 
             management.projects().update(self.expirationDate(Instant.now().minus(1, ChronoUnit.DAYS)));
-            ApiResponse response = signIn(project.user(MEMBER).username(), project.user(MEMBER).password(), (int) project.id());
-            management.projects().update(self.expirationDate(null));
-
-            assertThat(response.status()).isEqualTo(403);
-            assertThat(response.<String>path("message")).isEqualTo("The project expired!");
+            try {
+                ApiResponse response = signIn(project.user(MEMBER).username(), project.user(MEMBER).password(), (int) project.id());
+                verifyAll(v -> v
+                        .that("status", response.status(), 403)
+                        .that("message", response.<String>path("message"), "The project expired!"));
+            } finally {
+                management.projects().update(self.expirationDate(null));
+            }
         }
 
     }
@@ -202,11 +217,14 @@ class ManagementTest {
 
                 AuthResponse signedIn = signIn(name, Env.TEST_PASSWORD, (int) project.id()).as(AuthResponse.class);
 
-                assertThat(signedIn.token()).isNotBlank();
-                assertThat(signedIn.changePassword()).isNull();
-                assertThat(signedIn.roles()).containsExactlyInAnyOrder("MEMBER", "ROBOT", "AGENT");
-                assertThat(management.users().list()).filteredOn(u -> u.username.equals(name)).singleElement()
-                        .satisfies(u -> assertThat(u.projectsIds).containsExactly((int) project.id()));
+                verifyAll(v -> v
+                        .check("token: not blank", () -> assertThat(signedIn.token()).isNotBlank())
+                        .check("changePassword: none", () -> assertThat(signedIn.changePassword()).isNull())
+                        .check("roles: MEMBER, ROBOT, AGENT", () -> assertThat(signedIn.roles())
+                                .containsExactlyInAnyOrder("MEMBER", "ROBOT", "AGENT")));
+                List<ManagedUser> all = management.users().list();
+                check("user: in the project", () -> assertThat(all).filteredOn(u -> u.username.equals(name)).singleElement()
+                        .satisfies(u -> assertThat(u.projectsIds).containsExactly((int) project.id())));
             }
         }
 
@@ -218,9 +236,9 @@ class ManagementTest {
                 users.create(new ManagedUser().username(name).email(name + "@example.com").enabled(true)
                         .rolesIds(Set.of((short) Role.MEMBER.id)));
 
-                assertThat(management.users().tryCreate(new ManagedUser().username(name).enabled(true)).status()).isEqualTo(406);
-                assertThat(management.users().tryCreate(new ManagedUser().username(name + "-2").email(name.toUpperCase() + "@example.com")
-                        .enabled(true)).status()).isEqualTo(406);
+                verify("same name: status", management.users().tryCreate(new ManagedUser().username(name).enabled(true)).status(), 406);
+                verify("same email: status", management.users().tryCreate(new ManagedUser().username(name + "-2")
+                        .email(name.toUpperCase() + "@example.com").enabled(true)).status(), 406);
             }
         }
 
@@ -229,7 +247,7 @@ class ManagementTest {
             ApiResponse response = project.management().users().tryCreate(new ManagedUser().username(unique("e2e-u-"))
                     .enabled(true).rolesIds(Set.of((short) Role.MEMBER.id, (short) Role.ROBOT.id)));
 
-            assertThat(response.status()).isEqualTo(400);
+            verify("status", response.status(), 400);
         }
 
         @Test
@@ -241,7 +259,7 @@ class ManagementTest {
 
                 management.users().update(user.enabled(false).password(null));
 
-                assertThat(signIn(name, Env.TEST_PASSWORD, (int) project.id()).status()).isEqualTo(401);
+                verify("status", signIn(name, Env.TEST_PASSWORD, (int) project.id()).status(), 401);
             }
         }
 
@@ -255,8 +273,9 @@ class ManagementTest {
                 management.users().update(user.expirationDate(Instant.now().minus(1, ChronoUnit.DAYS)).password(null));
                 ApiResponse response = signIn(name, Env.TEST_PASSWORD, (int) project.id());
 
-                assertThat(response.status()).isEqualTo(403);
-                assertThat(response.<String>path("message")).isEqualTo("User access has expired!");
+                verifyAll(v -> v
+                        .that("status", response.status(), 403)
+                        .that("message", response.<String>path("message"), "User access has expired!"));
             }
         }
 
@@ -269,7 +288,7 @@ class ManagementTest {
 
                 management.users().update(user.projectsIds(Set.of()).password(null));
 
-                assertThat(signIn(name, Env.TEST_PASSWORD, (int) project.id()).status()).isEqualTo(403);
+                verify("status", signIn(name, Env.TEST_PASSWORD, (int) project.id()).status(), 403);
             }
         }
 
@@ -283,8 +302,9 @@ class ManagementTest {
                 management.users().update(user.rolesIds(Set.of((short) Role.ADMIN.id)).password(null));
                 AuthResponse signedIn = signIn(name, Env.TEST_PASSWORD, (int) project.id()).as(AuthResponse.class);
 
-                assertThat(signedIn.roles()).containsExactlyInAnyOrder("ADMIN", "MEMBER", "ROBOT", "AGENT");
-                assertThat(new Api(name).withToken(signedIn.token()).settings().buckets().tryList().status()).isEqualTo(200);
+                check("roles: ADMIN and below", () -> assertThat(signedIn.roles())
+                        .containsExactlyInAnyOrder("ADMIN", "MEMBER", "ROBOT", "AGENT"));
+                verify("bucket settings: status", new Api(name).withToken(signedIn.token()).settings().buckets().tryList().status(), 200);
             }
         }
 
@@ -298,11 +318,12 @@ class ManagementTest {
         void the_built_in_DEMO_dataset_is_offered(TestProject project) {
             List<DatasetInfo> datasets = project.management().datasets();
 
-            assertThat(datasets).filteredOn(d -> d.id().equals("demo")).singleElement().satisfies(demo -> {
-                assertThat(demo.source()).isEqualTo("built-in");
-                assertThat(demo.buckets()).isPositive();
-                assertThat(demo.rows()).isPositive();
-            });
+            List<DatasetInfo> demo = datasets.stream().filter(d -> d.id().equals("demo")).toList();
+            verifyAll(v -> v
+                    .that("demo: found", demo.size(), 1)
+                    .check("demo.source: built-in", () -> assertThat(demo.get(0).source()).isEqualTo("built-in"))
+                    .check("demo.buckets: positive", () -> assertThat(demo.get(0).buckets()).isPositive())
+                    .check("demo.rows: positive", () -> assertThat(demo.get(0).rows()).isPositive()));
         }
 
         @Test
@@ -316,10 +337,14 @@ class ManagementTest {
             try (TempProject copy = TempProject.create(management, new ManagedProject().name(unique("e2e-c-")).enabled(true))) {
                 ApiResponse imported = management.importDataset(copy.id(), dataset);
 
-                assertThat(imported.status()).isEqualTo(200);
-                assertThat(imported.<Integer>path("rows")).isEqualTo(3);
+                verifyAll(v -> v
+                        .that("status", imported.status(), 200)
+                        .that("rows", imported.<Integer>path("rows"), 3));
                 Map<String, Integer> original = management.content((int) project.id());
-                assertThat(management.content(copy.id())).isEqualTo(original);
+                Map<String, Integer> copied = management.content(copy.id());
+                verifyAll(v -> v
+                        .that("content: size", copied.size(), original.size())
+                        .that("content", copied, original));
             }
         }
 
@@ -329,7 +354,7 @@ class ManagementTest {
             Management management = project.management();
             JsonNode dataset = management.export((int) project.id());
 
-            assertThat(management.importDataset((int) project.id(), dataset).status()).isEqualTo(409);
+            verify("status", management.importDataset((int) project.id(), dataset).status(), 409);
         }
 
         @Test
@@ -338,8 +363,8 @@ class ManagementTest {
             JsonNode dataset = management.export((int) project.id());
             ((ObjectNode) dataset).put("format", 99);
             try (TempProject copy = TempProject.create(management, new ManagedProject().name(unique("e2e-c-")).enabled(true))) {
-                assertThat(management.importDataset(copy.id(), dataset).status()).isEqualTo(400);
-                assertThat(management.importDataset(copy.id(), Map.of("buckets", "not a list")).status()).isEqualTo(400);
+                verify("format 99: status", management.importDataset(copy.id(), dataset).status(), 400);
+                verify("buckets not a list: status", management.importDataset(copy.id(), Map.of("buckets", "not a list")).status(), 400);
             }
         }
     }

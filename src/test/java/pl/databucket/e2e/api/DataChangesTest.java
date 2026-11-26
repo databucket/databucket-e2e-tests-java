@@ -12,6 +12,7 @@ import pl.databucket.e2e.model.Message;
 import pl.databucket.e2e.model.NewRow;
 import pl.databucket.e2e.model.Tag;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -25,8 +26,11 @@ import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("Changing data")
 class DataChangesTest {
 
@@ -63,31 +67,32 @@ class DataChangesTest {
         BucketApi<Numbered> numbered = project.as(ROBOT).bucket(BUCKET, Numbered.class);
         numbered.insertAll(IntStream.rangeClosed(1, 50).mapToObj(Numbered::new).toList());
 
-        assertThat(numbered.count(Search.all())).isEqualTo(50);
+        verify("count", numbered.count(Search.all()), 50);
     }
 
     @Test
     void a_row_inserted_as_reserved_belongs_to_the_user(TestProject project) {
         DataRow<Order> row = orders.insert(NewRow.of(Order.status("NEW")).asReserved());
 
-        assertThat(row.reserved()).isTrue();
-        assertThat(row.owner()).isEqualTo(project.user(ROBOT).username());
+        verifyAll(v -> v
+                .that("reserved", row.reserved(), true)
+                .that("owner", row.owner(), project.user(ROBOT).username()));
     }
 
     @Test
     void a_row_with_a_tag_that_does_not_exist_is_refused(TestProject project) {
         ApiResponse response = orders.tryInsert(NewRow.of(Order.status("NEW")).tagged(999999));
+        verify("status", response.status(), 406);
 
-        assertThat(response.status()).isEqualTo(406);
-        assertThat(orders.count(Search.all())).isZero();
+        verify("count", orders.count(Search.all()), 0);
     }
 
     @Test
     void many_rows_at_once_are_all_saved_or_none(TestProject project) {
         ApiResponse response = orders.tryInsertRows(List.of(NewRow.of(Order.status("A")), NewRow.of(Order.status("B")).tagged(999999)));
+        verify("status", response.status(), 406);
 
-        assertThat(response.status()).isEqualTo(406);
-        assertThat(orders.count(Search.all())).isZero();
+        verify("count", orders.count(Search.all()), 0);
     }
 
     @Test
@@ -95,7 +100,7 @@ class DataChangesTest {
         long a = orders.insert(new Order("NEW", "a")).id();
         long b = orders.insert(new Order("NEW", "b")).id();
 
-        assertThat(orders.getAll(a, 999999, b)).extracting(row -> row.properties().customer()).containsExactly("a", "b");
+        verify("customers", orders.getAll(a, 999999, b).stream().map(row -> row.properties().customer()).toList(), List.of("a", "b"));
     }
 
     @Test
@@ -106,7 +111,7 @@ class DataChangesTest {
 
         orders.update(Change.set("$.status", "PAID"), a, c);
 
-        assertThat(statuses()).containsExactly("PAID", "NEW", "PAID");
+        verify("statuses", statuses(), List.of("PAID", "NEW", "PAID"));
     }
 
     @Test
@@ -116,8 +121,12 @@ class DataChangesTest {
 
         any.update(Change.remove("$.comment").and("$.address.zip", "75001").and("$.payment.method", "card"), id);
 
-        assertThat(any.get(id).orElseThrow().properties()).isEqualTo(Map.of(
-                "customer", "Alice", "address", Map.of("city", "Paris", "zip", "75001"), "payment", Map.of("method", "card")));
+        Map<?, ?> properties = any.get(id).orElseThrow().properties();
+        verifyAll(v -> v
+                .that("properties", properties, Map.of(
+                        "customer", "Alice", "address", Map.of("city", "Paris", "zip", "75001"), "payment", Map.of("method", "card")))
+                .check("no other properties (comment removed)", () -> assertThat(properties).isEqualTo(Map.of(
+                        "customer", "Alice", "address", Map.of("city", "Paris", "zip", "75001"), "payment", Map.of("method", "card")))));
     }
 
     @Test
@@ -125,18 +134,18 @@ class DataChangesTest {
         insertStatuses("NEW", "PAID", "NEW");
 
         Message message = orders.updateWhere(Change.set("$.status", "CANCELLED").where(rule("$.status", "==", "NEW")));
+        verify("message", message.message(), "Modified 2 data row(s)");
 
-        assertThat(message.message()).isEqualTo("Modified 2 data row(s)");
-        assertThat(statuses()).containsExactly("CANCELLED", "PAID", "CANCELLED");
+        verify("statuses", statuses(), List.of("CANCELLED", "PAID", "CANCELLED"));
     }
 
     @Test
     void changing_or_removing_by_rules_needs_at_least_one_rule(TestProject project) {
         insertStatuses("NEW");
 
-        assertThat(orders.tryUpdateWhere(Change.set("$.status", "X")).status()).isEqualTo(406);
-        assertThat(orders.tryDeleteWhere(Search.all()).status()).isEqualTo(406);
-        assertThat(statuses()).containsExactly("NEW");
+        verify("status", orders.tryUpdateWhere(Change.set("$.status", "X")).status(), 406);
+        verify("status", orders.tryDeleteWhere(Search.all()).status(), 406);
+        verify("statuses", statuses(), List.of("NEW"));
     }
 
     @Test
@@ -144,9 +153,9 @@ class DataChangesTest {
         insertStatuses("NEW", "PAID", "NEW");
 
         Message message = orders.deleteWhere(Search.where(rule("$.status", "==", "NEW")));
+        verify("message", message.message(), "Removed 2 data row(s)");
 
-        assertThat(message.message()).isEqualTo("Removed 2 data row(s)");
-        assertThat(statuses()).containsExactly("PAID");
+        verify("statuses", statuses(), List.of("PAID"));
     }
 
     @Test
@@ -156,17 +165,17 @@ class DataChangesTest {
         long id = asAgent.insert(Order.status("NEW")).id();
         asAgent.update(Change.set("$.status", "PAID"), id);
 
-        assertThat(asAgent.tryDelete(id).status()).isEqualTo(403);
-        assertThat(asAgent.tryDeleteWhere(Search.where(rule("$.status", "==", "PAID"))).status()).isEqualTo(403);
-        assertThat(orders.count(Search.all())).isEqualTo(1);
+        verify("status", asAgent.tryDelete(id).status(), 403);
+        verify("status", asAgent.tryDeleteWhere(Search.where(rule("$.status", "==", "PAID"))).status(), 403);
+        verify("count", orders.count(Search.all()), 1);
     }
 
     @Test
     void a_bucket_that_does_not_exist_gives_404(TestProject project) {
         BucketApi<Order> missing = project.as(ROBOT).bucket("no-such-bucket", Order.class);
 
-        assertThat(missing.tryFind(Search.all()).status()).isEqualTo(404);
-        assertThat(missing.tryInsert(NewRow.of(Order.status("NEW"))).status()).isEqualTo(404);
+        verify("status", missing.tryFind(Search.all()).status(), 404);
+        verify("status", missing.tryInsert(NewRow.of(Order.status("NEW"))).status(), 404);
     }
 
     @Test
@@ -176,7 +185,7 @@ class DataChangesTest {
 
         orders.update(Change.tag(tag.id), id);
 
-        assertThat(orders.get(id).orElseThrow().tagId()).isEqualTo(tag.id);
+        verify("tagId", orders.get(id).orElseThrow().tagId(), tag.id);
     }
 
     @Test
@@ -186,8 +195,9 @@ class DataChangesTest {
         project.as(MEMBER).bucket(BUCKET, Order.class).update(Change.set("$.status", "PAID"), id);
         DataRow<Order> changed = orders.get(id).orElseThrow();
 
-        assertThat(changed.createdBy()).isEqualTo(project.user(ROBOT).username());
-        assertThat(changed.modifiedBy()).isEqualTo(project.user(MEMBER).username());
-        assertThat(changed.modifiedAt()).isAfterOrEqualTo(changed.createdAt());
+        verifyAll(v -> v
+                .that("createdBy", changed.createdBy(), project.user(ROBOT).username())
+                .that("modifiedBy", changed.modifiedBy(), project.user(MEMBER).username())
+                .check("modifiedAt not before createdAt", () -> assertThat(changed.modifiedAt()).isAfterOrEqualTo(changed.createdAt())));
     }
 }

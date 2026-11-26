@@ -37,8 +37,13 @@ dependencies {
     allureCli("io.qameta.allure:allure-commandline:2.46.2@zip")
 }
 
-val allureResults = layout.buildDirectory.dir("allure-results")
-val allureReportDir = layout.buildDirectory.dir("allure-report")
+// API or WWW (GUI) tests, each type with its own results and report: -Ptype=api or -Ptype=www; both by default
+val testType = providers.gradleProperty("type").orNull?.lowercase()
+require(testType == null || testType == "api" || testType == "www") { "-Ptype is api or www, not $testType" }
+val typeNames = mapOf("api" to "API", "www" to "WWW")
+val selectedTypes = if (testType == null) listOf("api", "www") else listOf(testType)
+fun allureResults(type: String): File = layout.buildDirectory.dir("allure-results/$type").get().asFile
+fun allureReportDir(type: String): File = layout.buildDirectory.dir("allure-report/$type").get().asFile
 
 // Threads running the tests: -Pthreads=8; half of the processors by default (as Playwright's workers)
 val threads = providers.gradleProperty("threads")
@@ -46,7 +51,7 @@ val threads = providers.gradleProperty("threads")
 
 // Databucket under test: -PbaseUrl=... -PsuperUser=... -PsuperPassword=... or the environment variables
 // BASE_URL, SUPER_USER, SUPER_PASSWORD; the docker compose of databucket-server (super / super) by default
-val settings = listOf("baseUrl", "superUser", "superPassword", "headed")
+val settings = listOf("baseUrl", "superUser", "superPassword", "headed", "showPassedChecks")
 
 // Chromium for the GUI tests (once; quick when already installed)
 val installBrowsers = tasks.register<JavaExec>("installBrowsers") {
@@ -60,8 +65,9 @@ val installBrowsers = tasks.register<JavaExec>("installBrowsers") {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     defaultCharacterEncoding = "UTF-8"
+    // the default 512 MB ran out once in a full run (the results with their attachments are kept until written)
+    maxHeapSize = "1g"
     dependsOn(installBrowsers)
-    systemProperty("allure.results.directory", allureResults.get().asFile.absolutePath)
     systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", threads.get())
     settings.forEach { name -> providers.gradleProperty(name).orNull?.let { systemProperty("databucket.$name", it) } }
     // browsers are installed by installBrowsers, Playwright must not download all of them on its own
@@ -72,34 +78,66 @@ tasks.withType<Test>().configureEach {
         events("passed", "skipped", "failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
+}
+
+// ./gradlew test --tests ... (both types): the patterns of the test task for apiTest / wwwTest; a pattern may match
+// the tests of one type only
+fun Test.usesTestPatternsOfTest() {
     doFirst {
-        // every run starts a new report
-        val results = allureResults.get().asFile
-        results.deleteRecursively()
-        results.mkdirs()
-        val baseUrl = providers.gradleProperty("baseUrl").orNull ?: System.getenv("BASE_URL") ?: "http://databucket.localhost"
-        results.resolve("environment.properties").writeText("Databucket\\ URL=$baseUrl\nThreads=${threads.get()}\n")
+        val patterns = (tasks.test.get().filter as org.gradle.api.internal.tasks.testing.filter.DefaultTestFilter)
+            .commandLineIncludePatterns
+        if (testType == null && patterns.isNotEmpty()) {
+            val own = filter as org.gradle.api.internal.tasks.testing.filter.DefaultTestFilter
+            own.setCommandLineIncludePatterns(patterns)
+            own.isFailOnNoMatchingTests = false
+        }
     }
 }
 
-tasks.test {
-    description = "Runs all the tests (API and GUI)"
+// the tests of one type (tag api / www) into their own results: build/allure-results/<type>
+fun Test.ofType(type: String) {
+    useJUnitPlatform { includeTags(type) }
+    val results = allureResults(type)
+    systemProperty("allure.results.directory", results.absolutePath)
+    doFirst {
+        // every run starts a new report
+        results.deleteRecursively()
+        results.mkdirs()
+        val baseUrl = providers.gradleProperty("baseUrl").orNull ?: System.getenv("BASE_URL") ?: "http://databucket.localhost"
+        results.resolve("environment.properties")
+            .writeText("Databucket\\ URL=$baseUrl\nTests=${typeNames[type]}\nThreads=${threads.get()}\n")
+    }
 }
 
 val apiTest = tasks.register<Test>("apiTest") {
     group = "verification"
-    description = "Runs the API tests"
+    description = "Runs the API tests (report: build/allure-report/api)"
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
-    useJUnitPlatform { includeTags("api") }
+    ofType("api")
+    usesTestPatternsOfTest()
 }
 
-val uiTest = tasks.register<Test>("uiTest") {
+val wwwTest = tasks.register<Test>("wwwTest") {
     group = "verification"
-    description = "Runs the GUI tests"
+    description = "Runs the WWW (GUI) tests (report: build/allure-report/www)"
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
-    useJUnitPlatform { includeTags("ui") }
+    ofType("www")
+    usesTestPatternsOfTest()
+    mustRunAfter(apiTest)
+}
+
+tasks.test {
+    if (testType != null) {
+        description = "Runs the ${typeNames[testType]} tests (-Ptype=$testType)"
+        ofType(testType)
+    } else {
+        description = "Runs the API tests, then the WWW tests, each with its own report (-Ptype=api / -Ptype=www: one of them)"
+        dependsOn(apiTest, wwwTest)
+        // runs nothing itself: apiTest and wwwTest take its --tests (usesTestPatternsOfTest)
+        onlyIf { false }
+    }
 }
 
 val unpackAllure = tasks.register<Sync>("unpackAllure") {
@@ -116,18 +154,29 @@ fun JavaExec.allure(vararg arguments: Any) {
     args(*arguments)
 }
 
-val allureReport = tasks.register<JavaExec>("allureReport") {
+// one report per type: build/allure-report/api/index.html, build/allure-report/www/index.html (one file each)
+val typeReports = listOf("api", "www").associateWith { type ->
+    tasks.register<JavaExec>("allureReport${typeNames[type]!!.lowercase().replaceFirstChar { it.uppercase() }}") {
+        group = "verification"
+        description = "Generates the Allure report of the last ${typeNames[type]} run: build/allure-report/$type/index.html"
+        allure(
+            "generate", allureResults(type), "--clean", "--single-file",
+            "--name", "Databucket E2E - ${typeNames[type]}", "--lang", "en", "-o", allureReportDir(type),
+        )
+        onlyIf { allureResults(type).listFiles()?.any { it.name.endsWith("-result.json") } == true }
+    }
+}
+
+val allureReport = tasks.register("allureReport") {
     group = "verification"
-    description = "Generates the Allure report of the last run: build/allure-report/index.html (one file)"
-    allure(
-        "generate", allureResults.get().asFile, "--clean", "--single-file",
-        "--name", "Databucket E2E", "--lang", "en", "-o", allureReportDir.get().asFile,
-    )
+    description = "Generates the reports of the last run: build/allure-report/api and /www (-Ptype: one of them)"
+    dependsOn(selectedTypes.map { typeReports.getValue(it) })
 }
 
 val allureOpen = tasks.register<JavaExec>("allureOpen") {
     group = "verification"
-    description = "Generates the Allure report of the last run and opens it in the browser"
-    dependsOn(allureReport)
-    allure("open", allureReportDir.get().asFile)
+    description = "Generates the report of the last run and opens it in the browser (-Ptype=www: the WWW one; API by default)"
+    val type = testType ?: "api"
+    dependsOn(typeReports.getValue(type))
+    allure("open", allureReportDir(type))
 }

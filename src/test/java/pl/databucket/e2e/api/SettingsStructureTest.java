@@ -22,6 +22,7 @@ import pl.databucket.e2e.model.Task;
 import pl.databucket.e2e.model.TaskConfig;
 import pl.databucket.e2e.model.View;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Role;
 import pl.databucket.e2e.support.TestProject;
@@ -35,10 +36,14 @@ import static pl.databucket.e2e.client.Rules.logic;
 import static pl.databucket.e2e.client.Rules.var;
 import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** Settings that describe the data: classes, enums, columns, filters, tasks. */
 @ApiSuite
-@DisplayName("Settings: classes, enums, columns, filters, tasks")
+@Area(Area.SETTINGS)
+@DisplayName("Classes, enums, columns, filters, tasks")
 class SettingsStructureTest {
 
     private Settings settings;
@@ -79,23 +84,27 @@ class SettingsStructureTest {
             DataClass created = settings.classes().create(new DataClass().name("user").description("A user")
                     .configuration(List.of(field("$.login", "Login", "string"), field("$.age", "Age", "numeric"))));
 
-            assertThat(created.configuration).extracting(f -> f.path).containsExactly("$.login", "$.age");
+            verify("paths", created.configuration.stream().map(f -> f.path).toList(), List.of("$.login", "$.age"));
             created.configuration.add(field("$.birthDate", "Birth date", "date"));
             DataClass changed = settings.classes().update(created.description("A user of the shop"));
 
-            assertThat(changed.description).isEqualTo("A user of the shop");
-            assertThat(changed.configuration).extracting(f -> f.type).containsExactly("string", "numeric", "date");
-            assertThat(settings.classes().list()).extracting(c -> c.name).containsExactly("user");
+            verifyAll(v -> v
+                    .that("description", changed.description, "A user of the shop")
+                    .that("types", changed.configuration.stream().map(f -> f.type).toList(), List.of("string", "numeric", "date")));
+            List<DataClass> listed = settings.classes().list();
+            verify("names", listed.stream().map(c -> c.name).toList(), List.of("user"));
 
             settings.classes().delete(created.id);
-            assertThat(settings.classes().list()).isEmpty();
+            List<DataClass> left = settings.classes().list();
+            verify("classes: size", left.size(), 0);
         }
 
         @Test
         void a_class_name_is_unique(TestProject project) {
             settings.classes().create(new DataClass().name("user"));
 
-            assertThat(settings.classes().tryCreate(new DataClass().name("user")).status()).isEqualTo(406);
+            int status = settings.classes().tryCreate(new DataClass().name("user")).status();
+            verify("status", status, 406);
         }
 
         @Test
@@ -105,14 +114,17 @@ class SettingsStructureTest {
 
             ApiResponse response = settings.classes().tryDelete(dataClass.id);
 
-            assertThat(response.status()).isEqualTo(403);
-            assertThat(response.text()).contains("users");
-            assertThat(settings.classes().list()).hasSize(1);
+            verifyAll(v -> v
+                    .that("status", response.status(), 403)
+                    .check("message names the bucket", () -> assertThat(response.text()).contains("users")));
+            List<DataClass> listed = settings.classes().list();
+            verify("classes: size", listed.size(), 1);
         }
 
         @Test
         void a_bucket_with_a_class_that_does_not_exist_is_refused(TestProject project) {
-            assertThat(settings.buckets().tryCreate(SettingsBucketsTest.bucket("users").classId(999999L)).status()).isEqualTo(404);
+            int status = settings.buckets().tryCreate(SettingsBucketsTest.bucket("users").classId(999999L)).status();
+            verify("status", status, 404);
         }
     }
 
@@ -127,11 +139,13 @@ class SettingsStructureTest {
         void an_enum_keeps_its_items_in_order_and_can_be_changed(TestProject project) {
             DataEnum created = settings.enums().create(new DataEnum().name("levels").items(levels));
 
-            assertThat(settings.enums().list()).singleElement()
-                    .satisfies(e -> assertThat(e.items).extracting(i -> i.value).containsExactly("gold", "silver", "bronze"));
+            List<DataEnum> listed = settings.enums().list();
+            verifyAll(v -> v
+                    .that("enums: size", listed.size(), 1)
+                    .that("values", listed.get(0).items.stream().map(i -> i.value).toList(), List.of("gold", "silver", "bronze")));
 
             DataEnum changed = settings.enums().update(created.items(List.of(levels.get(2), levels.get(0))));
-            assertThat(changed.items).extracting(i -> i.text).containsExactly("Bronze", "Gold");
+            verify("texts", changed.items.stream().map(i -> i.text).toList(), List.of("Bronze", "Gold"));
         }
 
         @Test
@@ -139,15 +153,17 @@ class SettingsStructureTest {
             DataEnum created = settings.enums().create(new DataEnum().name("flags").iconsEnabled(true).items(List.of(
                     new EnumItem().value("pl").text("Poland").icon(new Icon().name("flag").color("#dc143c")))));
 
-            assertThat(created.iconsEnabled).isTrue();
-            assertThat(created.items.get(0).icon.color).isEqualTo("#dc143c");
+            verifyAll(v -> v
+                    .that("iconsEnabled", created.iconsEnabled, true)
+                    .that("items[0].icon.color", created.items.get(0).icon.color, "#dc143c"));
         }
 
         @Test
         void an_enum_name_is_unique(TestProject project) {
             settings.enums().create(new DataEnum().name("levels").items(levels));
 
-            assertThat(settings.enums().tryCreate(new DataEnum().name("levels").items(levels)).status()).isEqualTo(406);
+            int status = settings.enums().tryCreate(new DataEnum().name("levels").items(levels)).status();
+            verify("status", status, 406);
         }
 
         @Test
@@ -160,9 +176,11 @@ class SettingsStructureTest {
 
             ApiResponse response = settings.enums().tryDelete(levelsEnum.id);
 
-            assertThat(response.status()).isEqualTo(403);
-            assertThat(columns.id).isNotNull();
-            assertThat(settings.enums().list()).hasSize(1);
+            verifyAll(v -> v
+                    .that("status", response.status(), 403)
+                    .check("columns: id not null", () -> assertThat(columns.id).isNotNull()));
+            List<DataEnum> listed = settings.enums().list();
+            verify("enums: size", listed.size(), 1);
         }
 
         @Test
@@ -171,7 +189,8 @@ class SettingsStructureTest {
 
             settings.enums().delete(created.id);
 
-            assertThat(settings.enums().list()).isEmpty();
+            List<DataEnum> listed = settings.enums().list();
+            verify("enums: size", listed.size(), 0);
         }
     }
 
@@ -183,15 +202,17 @@ class SettingsStructureTest {
         void creates_changes_and_removes_columns(TestProject project) {
             Columns created = columns("login columns");
 
-            assertThat(created.configuration.columns).extracting(c -> c.uuid).containsExactly("uuid_data_id", "u-login");
+            verify("uuids", created.configuration.columns.stream().map(c -> c.uuid).toList(), List.of("uuid_data_id", "u-login"));
             created.configuration.columns.get(1).enabled(false);
             Columns changed = settings.columns().update(created.description("only the id shown"));
 
-            assertThat(changed.configuration.columns.get(1).enabled).isFalse();
-            assertThat(changed.description).isEqualTo("only the id shown");
+            verifyAll(v -> v
+                    .that("columns[1].enabled", changed.configuration.columns.get(1).enabled, false)
+                    .that("description", changed.description, "only the id shown"));
 
             settings.columns().delete(created.id);
-            assertThat(settings.columns().list()).isEmpty();
+            List<Columns> left = settings.columns().list();
+            verify("columns: size", left.size(), 0);
         }
 
         @Test
@@ -200,8 +221,9 @@ class SettingsStructureTest {
 
             List<Columns> read = project.as(MEMBER).settings().sessionColumns(created.id);
 
-            assertThat(read).singleElement().satisfies(c ->
-                    assertThat(c.configuration.properties).extracting(p -> p.path).containsExactly("$.login"));
+            verifyAll(v -> v
+                    .that("columns: size", read.size(), 1)
+                    .that("paths", read.get(0).configuration.properties.stream().map(p -> p.path).toList(), List.of("$.login")));
         }
     }
 
@@ -219,22 +241,25 @@ class SettingsStructureTest {
         void creates_changes_and_removes_a_filter(TestProject project) {
             Filter created = settings.filters().create(newCustomers());
 
-            assertThat(created.configuration.logic).isEqualTo(Map.of("==", List.of(Map.of("var", "$.status"), "NEW")));
+            verify("logic", created.configuration.logic, Map.of("==", List.of(Map.of("var", "$.status"), "NEW")));
             Filter changed = settings.filters().update(created.name("paid customers")
                     .configuration(created.configuration.logic(logic("==", var("$.status"), "PAID"))));
 
-            assertThat(changed.name).isEqualTo("paid customers");
-            assertThat(changed.configuration.logic).isEqualTo(Map.of("==", List.of(Map.of("var", "$.status"), "PAID")));
+            verifyAll(v -> v
+                    .that("name", changed.name, "paid customers")
+                    .that("logic", changed.configuration.logic, Map.of("==", List.of(Map.of("var", "$.status"), "PAID"))));
 
             settings.filters().delete(created.id);
-            assertThat(settings.filters().list()).isEmpty();
+            List<Filter> left = settings.filters().list();
+            verify("filters: size", left.size(), 0);
         }
 
         @Test
         void a_member_reads_the_filters_through_the_session(TestProject project) {
             Filter filter = settings.filters().create(newCustomers());
 
-            assertThat(project.as(MEMBER).settings().sessionFilters(filter.id)).extracting(f -> f.name).containsExactly("new customers");
+            List<Filter> read = project.as(MEMBER).settings().sessionFilters(filter.id);
+            verify("names", read.stream().map(f -> f.name).toList(), List.of("new customers"));
         }
     }
 
@@ -250,14 +275,16 @@ class SettingsStructureTest {
                     .configuration(new TaskConfig().properties(List.of(property("$.status", "Status")))
                             .actions(Map.of("setTag", true, "tagId", used.id, "setReserved", true, "reserved", false))));
 
-            assertThat(created.bucketsIds).containsExactly(bucket.id);
-            assertThat(created.configuration.actions).containsEntry("tagId", used.id.intValue());
+            verifyAll(v -> v
+                    .check("bucketsIds", () -> assertThat(created.bucketsIds).containsExactly(bucket.id))
+                    .check("actions.tagId", () -> assertThat(created.configuration.actions).containsEntry("tagId", used.id.intValue())));
 
             Task changed = settings.tasks().update(created.description("tag used rows and release them"));
-            assertThat(changed.description).isEqualTo("tag used rows and release them");
+            verify("description", changed.description, "tag used rows and release them");
 
             settings.tasks().delete(created.id);
-            assertThat(settings.tasks().list()).isEmpty();
+            List<Task> left = settings.tasks().list();
+            verify("tasks: size", left.size(), 0);
         }
 
         @Test
@@ -265,7 +292,8 @@ class SettingsStructureTest {
             Task task = settings.tasks().create(new Task().name("release").configuration(new TaskConfig()
                     .properties(List.of()).actions(Map.of("setReserved", true, "reserved", false))));
 
-            assertThat(project.as(MEMBER).settings().sessionTasks(task.id)).extracting(t -> t.name).containsExactly("release");
+            List<Task> read = project.as(MEMBER).settings().sessionTasks(task.id);
+            verify("names", read.stream().map(t -> t.name).toList(), List.of("release"));
         }
     }
 }

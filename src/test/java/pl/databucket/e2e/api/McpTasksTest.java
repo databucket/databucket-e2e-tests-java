@@ -9,6 +9,7 @@ import pl.databucket.e2e.model.FilterConfig;
 import pl.databucket.e2e.model.Task;
 import pl.databucket.e2e.model.TaskConfig;
 import pl.databucket.e2e.support.Api;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -25,10 +26,14 @@ import static pl.databucket.e2e.support.Json.obj;
 import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /** The MCP tools of 3.21.0 and 3.22.0: running a saved task (run_task) and the activity of the project (get_activity). */
 @ApiSuite
-@DisplayName("MCP server: tasks and activity")
+@Area(Area.MCP)
+@DisplayName("Tasks and activity")
 class McpTasksTest {
 
     private static final String BUCKET = "orders";
@@ -79,21 +84,28 @@ class McpTasksTest {
         Api agent = project.as(AGENT);
 
         ToolResult described = callTool(agent, "describe_bucket", obj("bucket", BUCKET));
-        assertThat(described.<List<String>>path("tasks.name")).containsExactly("archive used");
-        assertThat(described.<List<String>>path("tasks.action")).containsExactly("modify");
-        assertThat(described.<List<String>>path("tasks.filter")).containsExactly("status used");
+        verifyAll(v -> v
+                .that("tasks.name", described.<List<String>>path("tasks.name"), List.of("archive used"))
+                .that("tasks.action", described.<List<String>>path("tasks.action"), List.of("modify"))
+                .that("tasks.filter", described.<List<String>>path("tasks.filter"), List.of("status used")));
 
         ToolResult preview = callTool(agent, "run_task", obj("bucket", BUCKET, "task", "archive used", "preview", true));
-        assertThat(preview.<Integer>path("count")).isEqualTo(2);
-        assertThat(preview.<Boolean>path("preview")).isTrue();
-        assertThat(count(agent, "archived")).isZero();
+        verifyAll(v -> v
+                .that("count", preview.<Integer>path("count"), 2)
+                .that("preview", preview.<Boolean>path("preview"), true));
+        int archivedBefore = count(agent, "archived");
+        verify("archived rows", archivedBefore, 0);
 
         // by id this time
         ToolResult run = callTool(agent, "run_task", obj("bucket", BUCKET, "task", String.valueOf(task.id)));
-        assertThat(run.<Integer>path("count")).isEqualTo(2);
-        assertThat(run.<String>path("message")).isEqualTo("Modified 2 data row(s)");
-        assertThat(count(agent, "archived")).isEqualTo(2);
-        assertThat(count(agent, "active")).isEqualTo(1);
+        verifyAll(v -> v
+                .that("count", run.<Integer>path("count"), 2)
+                .that("message", run.<String>path("message"), "Modified 2 data row(s)"));
+        int archived = count(agent, "archived");
+        int active = count(agent, "active");
+        verifyAll(v -> v
+                .that("archived rows", archived, 2)
+                .that("active rows", active, 1));
     }
 
     @Test
@@ -103,19 +115,23 @@ class McpTasksTest {
         Api agent = project.as(AGENT);
 
         ToolResult withoutRules = callTool(agent, "run_task", obj("bucket", BUCKET, "task", "close all"));
-        assertThat(withoutRules.isError()).isTrue();
-        assertThat(withoutRules.text()).contains("give rules");
+        verifyAll(v -> v
+                .that("isError", withoutRules.isError(), true)
+                .check("message: give rules", () -> assertThat(withoutRules.text()).contains("give rules")));
 
         // the rows were created just now: none an hour old, all newer than an hour ago
         ToolResult old = callTool(agent, "run_task", obj("bucket", BUCKET, "task", "close all", "preview", true,
                 "rules", arr(arr("createdAt", "<", "@now-1h"))));
-        assertThat(old.<Integer>path("count")).isZero();
+        verify("count", old.<Integer>path("count"), 0);
 
         ToolResult run = callTool(agent, "run_task", obj("bucket", BUCKET, "task", "close all",
                 "rules", arr(arr("$.status", "==", "active"), arr("createdAt", ">", "@now-1h"))));
-        assertThat(run.<Integer>path("count")).isEqualTo(1);
-        assertThat(count(agent, "closed")).isEqualTo(1);
-        assertThat(count(agent, "used")).isEqualTo(2);
+        verify("count", run.<Integer>path("count"), 1);
+        int closed = count(agent, "closed");
+        int used = count(agent, "used");
+        verifyAll(v -> v
+                .that("closed rows", closed, 1)
+                .that("used rows", used, 2));
     }
 
     @Test
@@ -124,20 +140,23 @@ class McpTasksTest {
         removeTask(project, "used");
 
         ToolResult byAgent = callTool(project.as(AGENT), "run_task", obj("bucket", BUCKET, "task", "remove used"));
-        assertThat(byAgent.isError()).isTrue();
-        assertThat(byAgent.text()).contains("ROBOT role");
+        verifyAll(v -> v
+                .that("isError", byAgent.isError(), true)
+                .check("message: ROBOT role", () -> assertThat(byAgent.text()).contains("ROBOT role")));
 
         ToolResult byRobot = callTool(project.as(ROBOT), "run_task", obj("bucket", BUCKET, "task", "remove used"));
-        assertThat(byRobot.<Integer>path("count")).isEqualTo(2);
-        assertThat(count(project.as(ROBOT), "used")).isZero();
+        verify("count", byRobot.<Integer>path("count"), 2);
+        int used = count(project.as(ROBOT), "used");
+        verify("used rows", used, 0);
     }
 
     @Test
     void explains_an_unknown_task(TestProject project) {
         ToolResult unknown = callTool(project.as(AGENT), "run_task", obj("bucket", BUCKET, "task", "no such task"));
 
-        assertThat(unknown.isError()).isTrue();
-        assertThat(unknown.text()).contains("describe_bucket");
+        verifyAll(v -> v
+                .that("isError", unknown.isError(), true)
+                .check("message: describe_bucket", () -> assertThat(unknown.text()).contains("describe_bucket")));
     }
 
     @Test
@@ -146,23 +165,27 @@ class McpTasksTest {
         statusTask(project, "archive used", "used", "archived");
 
         ToolResult byAgent = callTool(project.as(AGENT), "get_activity", obj());
-        assertThat(byAgent.isError()).isTrue();
-        assertThat(byAgent.text()).contains("ADMIN role");
+        verifyAll(v -> v
+                .that("isError", byAgent.isError(), true)
+                .check("message: ADMIN role", () -> assertThat(byAgent.text()).contains("ADMIN role")));
 
         ToolResult tasks = callTool(project.as(ADMIN), "get_activity", obj("type", "Task", "from", "@now-1h"));
-        assertThat(tasks.<Integer>path("total")).isEqualTo(1);
-        assertThat(tasks.<String>path("events[0].action")).isEqualTo("CREATE");
-        assertThat(tasks.<String>path("events[0].entityName")).isEqualTo("archive used");
-        assertThat(tasks.<String>path("events[0].actor")).isEqualTo(project.user(ADMIN).username());
-        assertThat(tasks.<String>path("events[0].source")).isEqualTo("API");
+        verifyAll(v -> v
+                .that("total", tasks.<Integer>path("total"), 1)
+                .that("events[0].action", tasks.<String>path("events[0].action"), "CREATE")
+                .that("events[0].entityName", tasks.<String>path("events[0].entityName"), "archive used")
+                .that("events[0].actor", tasks.<String>path("events[0].actor"), project.user(ADMIN).username())
+                .that("events[0].source", tasks.<String>path("events[0].source"), "API"));
 
         // the bulk insert of the robot, as one operation with its count
         ToolResult data = callTool(project.as(ADMIN), "get_activity", obj("action", "data.create"));
-        assertThat(data.<Integer>path("events[0].changes.count")).isEqualTo(3);
-        assertThat(data.<String>path("events[0].actor")).isEqualTo(project.user(ROBOT).username());
+        verifyAll(v -> v
+                .that("events[0].changes.count", data.<Integer>path("events[0].changes.count"), 3)
+                .that("events[0].actor", data.<String>path("events[0].actor"), project.user(ROBOT).username()));
 
         ToolResult badDate = callTool(project.as(ADMIN), "get_activity", obj("from", "yesterday"));
-        assertThat(badDate.isError()).isTrue();
-        assertThat(badDate.text()).contains("@now-1d");
+        verifyAll(v -> v
+                .that("isError", badDate.isError(), true)
+                .check("message: @now-1d", () -> assertThat(badDate.text()).contains("@now-1d")));
     }
 }

@@ -9,6 +9,7 @@ import pl.databucket.e2e.model.FilterConfig;
 import pl.databucket.e2e.model.Task;
 import pl.databucket.e2e.model.TaskConfig;
 import pl.databucket.e2e.support.ApiResponse;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.Role;
 import pl.databucket.e2e.support.TestProject;
@@ -26,12 +27,16 @@ import static pl.databucket.e2e.support.Json.obj;
 import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 /**
  * Jobs of 3.23.0 (Settings → Jobs, formerly Schedules): a job with a keyword and no cron, the jobs of a keyword run in
  * one call (REST POST /api/task-schedules/run, MCP run_jobs) as the caller, and Run as the caller.
  */
 @ApiSuite
+@Area(Area.SETTINGS)
 @DisplayName("Jobs: running by keyword")
 class JobsTest {
 
@@ -91,10 +96,11 @@ class JobsTest {
         long id = job(project, "clean orders", task, ordersId, "", "  DEV   cleaning ");
 
         ApiResponse jobs = project.as(ADMIN).get("/api/task-schedules", call().expect(200));
-        assertThat(jobs.<List<Number>>path("id")).extracting(Number::longValue).containsExactly(id);
-        assertThat(jobs.<List<String>>path("keyword")).containsExactly(KEYWORD);
-        assertThat(jobs.<List<Object>>path("cron")).containsExactly((Object) null);
-        assertThat(jobs.<List<Object>>path("nextRunAt")).containsExactly((Object) null);
+        verifyAll(v -> v
+                .that("id", jobs.<List<Number>>path("id"), List.of(id))
+                .that("keyword", jobs.<List<String>>path("keyword"), List.of(KEYWORD))
+                .check("cron: null", () -> assertThat(jobs.<List<Object>>path("cron")).containsExactly((Object) null))
+                .check("nextRunAt: null", () -> assertThat(jobs.<List<Object>>path("nextRunAt")).containsExactly((Object) null)));
     }
 
     @Test
@@ -112,33 +118,41 @@ class JobsTest {
 
         ApiResponse preview = project.as(ROBOT).post("/api/task-schedules/run?preview=true",
                 call().body(obj("keyword", "DEV CLEANING")).expect(200));
-        assertThat(preview.<Boolean>path("preview")).isTrue();
-        assertThat(preview.<List<Number>>path("jobs.id")).extracting(Number::longValue).containsExactly(secretJob, ordersJob);
-        assertThat(preview.<List<String>>path("jobs.status")).containsExactly("ERROR", "OK");
-        assertThat(preview.<Integer>path("jobs[1].count")).isEqualTo(2);
-        assertThat(total(project, ORDERS)).isEqualTo(3);
+        int ordersBefore = total(project, ORDERS);
+        verifyAll(v -> v
+                .that("preview", preview.<Boolean>path("preview"), true)
+                .that("jobs.id", preview.<List<Number>>path("jobs.id"), List.of(secretJob, ordersJob))
+                .that("jobs.status", preview.<List<String>>path("jobs.status"), List.of("ERROR", "OK"))
+                .that("jobs[1].count", preview.<Integer>path("jobs[1].count"), 2)
+                .that("orders: total (nothing removed)", ordersBefore, 3));
 
         ApiResponse run = project.as(ROBOT).post("/api/task-schedules/run", call().body(obj("keyword", KEYWORD)).expect(200));
-        assertThat(run.<Boolean>path("preview")).isFalse();
-        assertThat(run.<Integer>path("ok")).isEqualTo(1);
-        assertThat(run.<Integer>path("errors")).isEqualTo(1);
-        assertThat(run.<List<String>>path("jobs.name")).containsExactly("clean secret", "clean orders");
-        assertThat(run.<List<String>>path("jobs.bucket")).containsExactly(SECRET, ORDERS);
-        assertThat(run.<List<String>>path("jobs.status")).containsExactly("ERROR", "OK");
-        assertThat(run.<Integer>path("jobs[1].count")).isEqualTo(2);
-        assertThat(total(project, ORDERS)).isEqualTo(1);
-        assertThat(total(project, SECRET)).isEqualTo(3);
+        int ordersAfter = total(project, ORDERS);
+        int secretAfter = total(project, SECRET);
+        verifyAll(v -> v
+                .that("preview", run.<Boolean>path("preview"), false)
+                .that("ok", run.<Integer>path("ok"), 1)
+                .that("errors", run.<Integer>path("errors"), 1)
+                .that("jobs.name", run.<List<String>>path("jobs.name"), List.of("clean secret", "clean orders"))
+                .that("jobs.bucket", run.<List<String>>path("jobs.bucket"), List.of(SECRET, ORDERS))
+                .that("jobs.status", run.<List<String>>path("jobs.status"), List.of("ERROR", "OK"))
+                .that("jobs[1].count", run.<Integer>path("jobs[1].count"), 2)
+                .that("orders: total", ordersAfter, 1)
+                .that("secret orders: total", secretAfter, 3));
 
         // the history: the keyword run, as the robot
         ApiResponse history = runs(project, ordersJob);
-        assertThat(history.<List<String>>path("trigger")).containsExactly("KEYWORD");
-        assertThat(history.<List<String>>path("runAs")).containsExactly(project.user(ROBOT).username());
-        assertThat(runs(project, secretJob).<List<String>>path("status")).containsExactly("ERROR");
+        verifyAll(v -> v
+                .that("trigger", history.<List<String>>path("trigger"), List.of("KEYWORD"))
+                .that("runAs", history.<List<String>>path("runAs"), List.of(project.user(ROBOT).username())));
+        ApiResponse secretHistory = runs(project, secretJob);
+        verify("status", secretHistory.<List<String>>path("status"), List.of("ERROR"));
 
         // a failed keyword run doesn't count towards disabling the job
         ApiResponse jobs = project.as(ADMIN).get("/api/task-schedules", call().expect(200));
-        assertThat(jobs.<List<Integer>>path("failures")).containsOnly(0);
-        assertThat(jobs.<List<Boolean>>path("enabled")).containsOnly(true);
+        verifyAll(v -> v
+                .check("failures: all 0", () -> assertThat(jobs.<List<Integer>>path("failures")).containsOnly(0))
+                .check("enabled: all true", () -> assertThat(jobs.<List<Boolean>>path("enabled")).containsOnly(true)));
     }
 
     @Test
@@ -149,11 +163,12 @@ class JobsTest {
         job(project, "other", task, ordersId, null, "nightly");
 
         ApiResponse unknown = project.as(ROBOT).post("/api/task-schedules/run", call().body(obj("keyword", "dev")).expect(404));
-        assertThat(unknown.text()).contains("'DEV cleaning', 'nightly'");
+        check("message lists the keywords", () -> assertThat(unknown.text()).contains("'DEV cleaning', 'nightly'"));
 
         project.as(ROBOT).post("/api/task-schedules/run", call().body(obj("keyword", " ")).expect(400));
         project.as(AGENT).post("/api/task-schedules/run", call().body(obj("keyword", KEYWORD)).expect(403));
-        assertThat(total(project, ORDERS)).isEqualTo(3);
+        int orders = total(project, ORDERS);
+        verify("orders: total (nothing removed)", orders, 3);
     }
 
     @Test
@@ -166,11 +181,13 @@ class JobsTest {
 
         ApiResponse ran = project.as(ADMIN).post("/api/task-schedules/" + id + "/run", call().body(obj()).expect(200));
 
-        assertThat(ran.<String>path("lastStatus")).isEqualTo("OK");
-        assertThat(ran.<Integer>path("lastCount")).isEqualTo(2);
+        verifyAll(v -> v
+                .that("lastStatus", ran.<String>path("lastStatus"), "OK")
+                .that("lastCount", ran.<Integer>path("lastCount"), 2));
         ApiResponse history = runs(project, id);
-        assertThat(history.<List<String>>path("trigger")).containsExactly("MANUAL");
-        assertThat(history.<List<String>>path("runAs")).containsExactly(project.user(ADMIN).username());
+        verifyAll(v -> v
+                .that("trigger", history.<List<String>>path("trigger"), List.of("MANUAL"))
+                .that("runAs", history.<List<String>>path("runAs"), List.of(project.user(ADMIN).username())));
     }
 
     @Test
@@ -180,19 +197,25 @@ class JobsTest {
         job(project, "clean orders", task, ordersId, null, KEYWORD);
 
         ToolResult byAgent = callTool(project.as(AGENT), "run_jobs", obj("keyword", KEYWORD));
-        assertThat(byAgent.isError()).isTrue();
-        assertThat(byAgent.text()).contains("ROBOT role");
+        verifyAll(v -> v
+                .that("isError", byAgent.isError(), true)
+                .check("message: ROBOT role", () -> assertThat(byAgent.text()).contains("ROBOT role")));
 
         ToolResult unknown = callTool(project.as(ROBOT), "run_jobs", obj("keyword", "nope"));
-        assertThat(unknown.isError()).isTrue();
-        assertThat(unknown.text()).contains("'DEV cleaning'");
+        verifyAll(v -> v
+                .that("isError", unknown.isError(), true)
+                .check("message lists the keywords", () -> assertThat(unknown.text()).contains("'DEV cleaning'")));
 
         ToolResult preview = callTool(project.as(ROBOT), "run_jobs", obj("keyword", KEYWORD, "preview", true));
-        assertThat(preview.<Integer>path("jobs[0].count")).isEqualTo(2);
-        assertThat(total(project, ORDERS)).isEqualTo(3);
+        int ordersBefore = total(project, ORDERS);
+        verifyAll(v -> v
+                .that("jobs[0].count", preview.<Integer>path("jobs[0].count"), 2)
+                .that("orders: total (nothing removed)", ordersBefore, 3));
 
         ToolResult run = callTool(project.as(ROBOT), "run_jobs", obj("keyword", KEYWORD));
-        assertThat(run.<Integer>path("ok")).isEqualTo(1);
-        assertThat(total(project, ORDERS)).isEqualTo(1);
+        int ordersAfter = total(project, ORDERS);
+        verifyAll(v -> v
+                .that("ok", run.<Integer>path("ok"), 1)
+                .that("orders: total", ordersAfter, 1));
     }
 }

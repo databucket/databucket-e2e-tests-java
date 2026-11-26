@@ -10,6 +10,7 @@ import pl.databucket.e2e.client.Search;
 import pl.databucket.e2e.model.HistoryPage;
 import pl.databucket.e2e.model.HistoryVersion;
 import pl.databucket.e2e.model.RowHistory;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -20,8 +21,11 @@ import static pl.databucket.e2e.client.Rules.rule;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("History of changes")
 class HistoryChangesTest {
 
@@ -55,7 +59,7 @@ class HistoryChangesTest {
 
         List<HistoryVersion<Order>> versions = orders.versions(id, entries);
 
-        assertThat(versions).extracting(version -> version.properties().status()).containsExactly("NEW", "PAID", "SHIPPED");
+        verify("statuses", versions.stream().map(version -> version.properties().status()).toList(), List.of("NEW", "PAID", "SHIPPED"));
     }
 
     @Test
@@ -65,9 +69,10 @@ class HistoryChangesTest {
 
         List<RowHistory> entries = orders.history(id);
 
-        assertThat(entries).hasSize(2);
-        assertThat(entries.get(1).reserved()).isTrue();
-        assertThat(entries.get(1).modifiedBy()).isEqualTo(project.user(MEMBER).username());
+        verifyAll(v -> v
+                .that("entries: size", entries.size(), 2)
+                .check("second entry: reserved", () -> assertThat(entries.get(1).reserved()).isTrue())
+                .check("second entry: modifiedBy", () -> assertThat(entries.get(1).modifiedBy()).isEqualTo(project.user(MEMBER).username())));
     }
 
     @Test
@@ -78,8 +83,8 @@ class HistoryChangesTest {
 
         orders.clearHistory(id);
 
-        assertThat(orders.history(id)).isEmpty();
-        assertThat(orders.get(id).orElseThrow().properties().status()).isEqualTo("PAID");
+        verify("history entries", orders.history(id).size(), 0);
+        verify("status", orders.get(id).orElseThrow().properties().status(), "PAID");
     }
 
     @Test
@@ -88,9 +93,9 @@ class HistoryChangesTest {
         long id = orders.insert(Order.status("NEW")).id();
         BucketApi<Order> asAgent = project.as(AGENT).bucket(BUCKET, Order.class);
 
-        assertThat(asAgent.tryClearHistory(id).status()).isEqualTo(403);
-        assertThat(asAgent.tryClearHistoryWhere(Search.where(rule("id", "==", id))).status()).isEqualTo(403);
-        assertThat(orders.history(id)).hasSize(1);
+        verify("status", asAgent.tryClearHistory(id).status(), 403);
+        verify("status", asAgent.tryClearHistoryWhere(Search.where(rule("id", "==", id))).status(), 403);
+        verify("history entries", orders.history(id).size(), 1);
     }
 
     @Test
@@ -102,8 +107,8 @@ class HistoryChangesTest {
 
         orders.clearHistoryWhere(Search.where(rule("$.customer", "==", "Alice")));
 
-        assertThat(orders.history(paid)).isEmpty();
-        assertThat(orders.history(other)).hasSize(2);
+        verify("history entries of Alice", orders.history(paid).size(), 0);
+        verify("history entries of Bob", orders.history(other).size(), 2);
     }
 
     @Test
@@ -113,7 +118,7 @@ class HistoryChangesTest {
         long id = plain.insert(Order.status("NEW")).id();
         setStatus(plain, id, "PAID");
 
-        assertThat(plain.history(id)).isEmpty();
+        verify("history entries", plain.history(id).size(), 0);
     }
 
     @Test
@@ -125,9 +130,10 @@ class HistoryChangesTest {
 
         HistoryPage<Order> byMember = orders.searchHistory(Search.history(rule("modifiedBy", "==", member)).limit(10));
 
-        assertThat(byMember.total()).isEqualTo(1);
-        assertThat(byMember.entries().get(0).dataId()).isEqualTo(id);
-        assertThat(byMember.entries().get(0).modifiedBy()).isEqualTo(member);
+        verifyAll(v -> v
+                .that("total", byMember.total(), 1)
+                .check("first entry: dataId", () -> assertThat(byMember.entries().get(0).dataId()).isEqualTo(id))
+                .check("first entry: modifiedBy", () -> assertThat(byMember.entries().get(0).modifiedBy()).isEqualTo(member)));
     }
 
     @Test
@@ -137,6 +143,6 @@ class HistoryChangesTest {
 
         orders.delete(id);
 
-        assertThat(orders.searchHistory(Search.history(rule("dataId", "==", id)).limit(10)).total()).isZero();
+        verify("total", orders.searchHistory(Search.history(rule("dataId", "==", id)).limit(10)).total(), 0);
     }
 }

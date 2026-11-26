@@ -17,6 +17,14 @@ public final class ReportConfig {
     /** JSON fields, at any depth of a request or response body, whose values are masked (***). */
     public static final Set<String> SECRET_FIELDS = Set.of("password", "newPassword", "token", "ssoToken");
 
+    /**
+     * The checks of a response ({@code call().verify(...)}, {@code BucketApi.get(id, expected)}): every check in the
+     * step "verification: 4 of 5 passed" (true), or only the failed ones (false). The default here; for a run
+     * {@code -PshowPassedChecks=false} or the environment variable {@code SHOW_PASSED_CHECKS=false}.
+     */
+    public static final boolean SHOW_PASSED_CHECKS =
+            Boolean.parseBoolean(Env.value("showPassedChecks", "SHOW_PASSED_CHECKS", "true"));
+
     private ReportConfig() {
     }
 }

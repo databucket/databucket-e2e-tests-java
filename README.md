@@ -19,17 +19,20 @@ cd databucket-server/docker && docker compose up -d --build
 Then, in this repository (Gradle downloads everything, Chromium included):
 
 ```
-./gradlew test              # everything; ./gradlew apiTest / ./gradlew uiTest
-./gradlew allureReport      # build/allure-report/index.html (one file, opens from the disk)
-./gradlew allureOpen        # generates the report and opens it in the browser
+./gradlew test              # the API tests, then the WWW (GUI) tests, each with its own report
+./gradlew test -Ptype=api   # only the API tests (or ./gradlew apiTest); -Ptype=www: only the WWW tests (wwwTest)
+./gradlew allureReport      # build/allure-report/api/index.html and build/allure-report/www/index.html (one file each)
+./gradlew allureOpen        # generates the API report and opens it in the browser; -Ptype=www: the WWW one
 ```
 
 | Option | |
 |---|---|
+| `-Ptype=api` / `-Ptype=www` | only the API or only the WWW (GUI) tests, and their report; both by default |
 | `-Pthreads=8` | threads running the tests (half of the processors by default) |
 | `-PbaseUrl=http://localhost:8080` or `BASE_URL=...` | another Databucket |
 | `-PsuperUser=... -PsuperPassword=...` or `SUPER_USER`, `SUPER_PASSWORD` | its SUPER admin |
 | `-Pheaded=true` | see the browser |
+| `-PshowPassedChecks=false` or `SHOW_PASSED_CHECKS=false` | the checks of a response show only the failed ones (all by default, `ReportConfig.SHOW_PASSED_CHECKS`) |
 | `--tests '*DataApiTest*'` | some tests only |
 
 ## How the tests are isolated and run in parallel
@@ -49,7 +52,7 @@ request.
 | Path (`src/test/java/pl/databucket/e2e/`) | |
 |---|---|
 | `api/` | API tests (`@ApiSuite`: tag `api`) |
-| `ui/` | GUI tests in Chromium (`@UiSuite`: tag `ui`) |
+| `ui/` | WWW (GUI) tests in Chromium (`@UiSuite`: tag `www`) |
 | `pages/` | page objects of the GUI, their actions are steps of the report |
 | `support/Api.java` | REST client: every call is an Allure step with the request and the response |
 | `support/Call.java` | options of a call: `call().body(obj(...)).expect(201).name("...")` |
@@ -83,7 +86,8 @@ Test names come from the method names (`_` → space); `@DisplayName` for names 
 ## The report
 
 [Allure 2](https://allurereport.org) (the classic report, its command line is downloaded by Gradle; no Node.js needed),
-tree: api / ui > class (`@DisplayName`) > test.
+two reports, API and WWW (GUI), each with the tree: area of the application (`@Area`: Data, Settings, Management,
+Access, MCP, Fixed bugs) > class (`@DisplayName`) > test.
 
 - API calls are steps such as `POST /api/bucket/orders/get → 200` with the request and the response attached as one
   HTML view: method, URL, status and time, then the request and the response with their headers (collapsed) and

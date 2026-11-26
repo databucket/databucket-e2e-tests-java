@@ -10,6 +10,7 @@ import pl.databucket.e2e.client.Search;
 import pl.databucket.e2e.model.DataRow;
 import pl.databucket.e2e.model.Message;
 import pl.databucket.e2e.model.Reservation;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
 import pl.databucket.e2e.support.TestProject;
 
@@ -28,8 +29,12 @@ import static pl.databucket.e2e.support.UserKey.ADMIN;
 import static pl.databucket.e2e.support.UserKey.AGENT;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verify;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @ApiSuite
+@Area(Area.DATA)
 @DisplayName("Reservation")
 class ReservationTest {
 
@@ -63,9 +68,10 @@ class ReservationTest {
         Reservation<Account> count = accounts.reserve(Search.all().limit(0));
         Reservation<Account> again = accounts.reserve(Search.all().limit(0));
 
-        assertThat(count.reserved()).isZero();
-        assertThat(count.available()).isEqualTo(4);
-        assertThat(again.available()).isEqualTo(4);
+        verifyAll(v -> v
+                .that("count: reserved", count.reserved(), 0)
+                .that("count: available", count.available(), 4)
+                .that("again: available", again.available(), 4));
     }
 
     @Test
@@ -76,10 +82,11 @@ class ReservationTest {
         Reservation<Account> counted = accounts.reserve(Search.all().limit(2));
         Reservation<Account> notCounted = accounts.reserve(Search.all().limit(1).count(false));
 
-        assertThat(counted.reserved()).isEqualTo(2);
-        assertThat(counted.available()).isEqualTo(3);
-        assertThat(notCounted.reserved()).isEqualTo(1);
-        assertThat(notCounted.available()).isNull();
+        verifyAll(v -> v
+                .that("counted: reserved", counted.reserved(), 2)
+                .that("counted: available", counted.available(), 3)
+                .that("not counted: reserved", notCounted.reserved(), 1)
+                .check("not counted: available null", () -> assertThat(notCounted.available()).isNull()));
     }
 
     @Test
@@ -88,9 +95,11 @@ class ReservationTest {
 
         Reservation<Account> reservation = accounts.reserve(Search.where(rule("$.plan", "==", "premium")).limit(10));
 
-        assertThat(reservation.reserved()).isEqualTo(3);
-        assertThat(reservation.rows()).extracting(row -> row.properties().plan()).containsOnly("premium");
-        assertThat(reservation.available()).isZero();
+        verifyAll(v -> v
+                .that("reserved", reservation.reserved(), 3)
+                .check("plans: only premium", () -> assertThat(reservation.rows())
+                        .extracting(row -> row.properties().plan()).containsOnly("premium"))
+                .that("available", reservation.available(), 0));
     }
 
     @Test
@@ -100,9 +109,10 @@ class ReservationTest {
 
         Reservation<Account> reservation = accounts.reserve(Search.all().limit(1));
 
-        assertThat(reservation.reserved()).isZero();
-        assertThat(reservation.available()).isZero();
-        assertThat(reservation.message()).isEqualTo("No data matches the rules!");
+        verifyAll(v -> v
+                .that("reserved", reservation.reserved(), 0)
+                .that("available", reservation.available(), 0)
+                .that("message", reservation.message(), "No data matches the rules!"));
     }
 
     @Test
@@ -112,9 +122,13 @@ class ReservationTest {
         Reservation<Account> memberGot = project.as(MEMBER).bucket(BUCKET, Account.class).reserve(Search.all().limit(2));
         Reservation<Account> robotGot = accounts.reserve(Search.all().limit(5));
 
-        assertThat(memberGot.ids()).hasSize(2);
-        assertThat(robotGot.ids()).hasSize(1).doesNotContainAnyElementsOf(memberGot.ids());
-        assertThat(robotGot.rows()).extracting(DataRow::owner).containsExactly(project.user(ROBOT).username());
+        verifyAll(v -> v
+                .that("member: ids: size", memberGot.ids().size(), 2)
+                .that("robot: ids: size", robotGot.ids().size(), 1)
+                .check("robot: other rows than the member", () -> assertThat(robotGot.ids())
+                        .doesNotContainAnyElementsOf(memberGot.ids()))
+                .that("robot: owners", robotGot.rows().stream().map(DataRow::owner).toList(),
+                        List.of(project.user(ROBOT).username())));
     }
 
     @Test
@@ -136,10 +150,12 @@ class ReservationTest {
             pool.shutdown();
         }
 
-        assertThat(new HashSet<>(ids)).hasSize(ids.size());
+        Long available = accounts.reserve(Search.all().limit(0)).available();
         // every row is taken once at most; a reservation that met only taken rows got none
-        assertThat(ids).isNotEmpty();
-        assertThat(accounts.reserve(Search.all().limit(0)).available()).isEqualTo(30 - ids.size());
+        verifyAll(v -> v
+                .that("distinct ids", new HashSet<>(ids).size(), ids.size())
+                .check("ids: not empty", () -> assertThat(ids).isNotEmpty())
+                .that("available", available, 30 - ids.size()));
     }
 
     @Test
@@ -150,8 +166,9 @@ class ReservationTest {
         accounts.release(id);
         Reservation<Account> again = project.as(MEMBER).bucket(BUCKET, Account.class).reserve(Search.all().limit(1));
 
-        assertThat(again.ids()).containsExactly(id);
-        assertThat(again.rows()).extracting(DataRow::owner).containsExactly(project.user(MEMBER).username());
+        verifyAll(v -> v
+                .that("ids", again.ids(), List.of(id))
+                .that("owners", again.rows().stream().map(DataRow::owner).toList(), List.of(project.user(MEMBER).username())));
     }
 
     @Test
@@ -163,13 +180,16 @@ class ReservationTest {
         Reservation<Account> forMember = project.as(ADMIN).bucket(BUCKET, Account.class).reserve(Search.all().limit(1).forOwner(member));
         Reservation<Account> robotTries = accounts.reserve(Search.all().limit(1).forOwner(member));
 
-        assertThat(forMember.rows()).extracting(DataRow::owner).containsExactly(member);
-        assertThat(robotTries.rows()).extracting(DataRow::owner).containsExactly(project.user(ROBOT).username());
+        verifyAll(v -> v
+                .that("for the member: owners", forMember.rows().stream().map(DataRow::owner).toList(), List.of(member))
+                .that("robot tries: owners", robotTries.rows().stream().map(DataRow::owner).toList(),
+                        List.of(project.user(ROBOT).username())));
     }
 
     @Test
     void a_negative_limit_is_refused(TestProject project) {
-        assertThat(accounts.tryReserve(Search.all().limit(-1)).status()).isEqualTo(406);
+        int status = accounts.tryReserve(Search.all().limit(-1)).status();
+        verify("status", status, 406);
     }
 
     @Test
@@ -179,9 +199,10 @@ class ReservationTest {
 
         Message message = accounts.updateWhere(Change.reserve(true).where(rule("id", ">", 0)));
 
-        assertThat(message.message()).isEqualTo("Modified 2 data row(s)");
-        assertThat(accounts.find(Search.all().limit(10)).rows()).extracting(DataRow::owner).containsExactly(
-                project.user(MEMBER).username(), project.user(ROBOT).username(), project.user(ROBOT).username());
+        verify("message", message.message(), "Modified 2 data row(s)");
+        List<String> owners = accounts.find(Search.all().limit(10)).rows().stream().map(DataRow::owner).toList();
+        verify("owners", owners, List.of(project.user(MEMBER).username(), project.user(ROBOT).username(),
+                project.user(ROBOT).username()));
     }
 
     @Test
@@ -194,9 +215,12 @@ class ReservationTest {
         Reservation<Account> reserved = asMember.reserve(Search.all().limit(1));
 
         // free rows are counted for everyone, as anyone may reserve them
-        assertThat(reserved.available()).isEqualTo(2);
-        assertThat(asMember.properties(Search.all())).containsExactly(reserved.rows().get(0).properties());
-        assertThat(project.as(ROBOT).bucket("vault", Account.class).properties(Search.all())).isEmpty();
-        assertThat(asAdmin.count(Search.all())).isEqualTo(3);
+        verify("available", reserved.available(), 2);
+        List<Account> memberSees = asMember.properties(Search.all());
+        verify("member sees", memberSees, List.of(reserved.rows().get(0).properties()));
+        List<Account> robotSees = project.as(ROBOT).bucket("vault", Account.class).properties(Search.all());
+        verify("robot sees: size", robotSees.size(), 0);
+        long all = asAdmin.count(Search.all());
+        verify("admin counts", all, 3);
     }
 }

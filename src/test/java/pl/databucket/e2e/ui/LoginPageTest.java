@@ -7,6 +7,7 @@ import pl.databucket.e2e.pages.LoginPage;
 import pl.databucket.e2e.pages.ProjectPage;
 import pl.databucket.e2e.support.TestProject;
 import pl.databucket.e2e.support.TestUser;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.UiSuite;
 
 import java.util.regex.Pattern;
@@ -14,8 +15,10 @@ import java.util.regex.Pattern;
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static pl.databucket.e2e.support.Screenshots.screenshot;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @UiSuite
+@Area(Area.ACCESS)
 @DisplayName("Login page")
 class LoginPageTest {
 
@@ -28,8 +31,9 @@ class LoginPageTest {
         TestUser member = project.user(MEMBER);
         login.signIn(member.username(), member.password());
 
-        assertThat(page).hasURL(Pattern.compile("/project/" + project.id() + "$"));
-        assertThat(new ProjectPage(page).bucket("orders")).isVisible();
+        verifyAll(v -> v
+                .check("the project page is open", () -> assertThat(page).hasURL(Pattern.compile("/project/" + project.id() + "$")))
+                .check("the bucket orders is shown", () -> assertThat(new ProjectPage(page).bucket("orders")).isVisible()));
     }
 
     @Test
@@ -39,8 +43,10 @@ class LoginPageTest {
 
         login.signIn(project.user(MEMBER).username(), "wrong password");
 
-        assertThat(page.getByText(Pattern.compile("bad credentials", Pattern.CASE_INSENSITIVE))).isVisible();
-        assertThat(page).hasURL(Pattern.compile("/login$"));
+        verifyAll(v -> v
+                .check("the message says bad credentials",
+                        () -> assertThat(page.getByText(Pattern.compile("bad credentials", Pattern.CASE_INSENSITIVE))).isVisible())
+                .check("still on the login page", () -> assertThat(page).hasURL(Pattern.compile("/login$"))));
         screenshot(page, "error message");
     }
 }

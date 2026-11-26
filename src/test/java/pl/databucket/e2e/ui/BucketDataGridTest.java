@@ -8,6 +8,7 @@ import pl.databucket.e2e.pages.ProjectPage;
 import pl.databucket.e2e.support.Api;
 import pl.databucket.e2e.support.ApiResponse;
 import pl.databucket.e2e.support.TestProject;
+import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.UiSuite;
 
 import java.util.List;
@@ -20,8 +21,11 @@ import static pl.databucket.e2e.support.Json.obj;
 import static pl.databucket.e2e.support.Screenshots.screenshot;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
+import static pl.databucket.e2e.support.Verify.check;
+import static pl.databucket.e2e.support.Verify.verifyAll;
 
 @UiSuite
+@Area(Area.DATA)
 @DisplayName("Bucket data grid")
 class BucketDataGridTest {
 
@@ -45,9 +49,10 @@ class BucketDataGridTest {
 
         ui.openBucket(BUCKET);
 
-        assertThat(ui.row("Alice")).containsText("NEW");
-        assertThat(ui.row("Bob")).containsText("PAID");
-        assertThat(ui.pagination()).hasText("1-3 of 3");
+        verifyAll(v -> v
+                .check("Alice: NEW", () -> assertThat(ui.row("Alice")).containsText("NEW"))
+                .check("Bob: PAID", () -> assertThat(ui.row("Bob")).containsText("PAID"))
+                .check("pagination: 1-3 of 3", () -> assertThat(ui.pagination()).hasText("1-3 of 3")));
     }
 
     @Test
@@ -58,9 +63,10 @@ class BucketDataGridTest {
 
         ui.search("Bob");
 
-        assertThat(ui.pagination()).hasText("1-1 of 1");
-        assertThat(ui.row("Bob")).isVisible();
-        assertThat(ui.row("Alice")).isHidden();
+        verifyAll(v -> v
+                .check("pagination: 1-1 of 1", () -> assertThat(ui.pagination()).hasText("1-1 of 1"))
+                .check("Bob is shown", () -> assertThat(ui.row("Bob")).isVisible())
+                .check("Alice is hidden", () -> assertThat(ui.row("Alice")).isHidden()));
     }
 
     @Test
@@ -71,15 +77,16 @@ class BucketDataGridTest {
 
         ui.addRow(obj("Customer", "Dave", "Status", "NEW"));
 
-        assertThat(ui.row("Dave")).isVisible();
+        check("Dave is shown", () -> assertThat(ui.row("Dave")).isVisible());
         screenshot(page, "row added");
         Api member = project.as(MEMBER);
         ApiResponse found = member.post("/api/bucket/" + BUCKET + "/get?limit=10", call()
                 .body(obj("logic", obj("==", arr(obj("var", "$.customer"), "Dave"))))
                 .expect(200));
-        assertThat(found.<List<?>>path("data")).hasSize(1);
-        assertThat(found.<String>path("data[0].properties.customer")).isEqualTo("Dave");
-        assertThat(found.<String>path("data[0].properties.status")).isEqualTo("NEW");
-        assertThat(found.<String>path("data[0].createdBy")).isEqualTo(project.user(MEMBER).username());
+        verifyAll(v -> v
+                .that("rows: size", found.<List<?>>path("data").size(), 1)
+                .that("data[0].properties.customer", found.<String>path("data[0].properties.customer"), "Dave")
+                .that("data[0].properties.status", found.<String>path("data[0].properties.status"), "NEW")
+                .that("data[0].createdBy", found.<String>path("data[0].createdBy"), project.user(MEMBER).username()));
     }
 }
