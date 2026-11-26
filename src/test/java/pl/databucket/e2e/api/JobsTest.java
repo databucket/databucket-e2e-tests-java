@@ -108,7 +108,7 @@ class JobsTest {
     void robot_runs_the_jobs_of_a_keyword(TestProject project) {
         // a bucket only for admins: the robot has no access to it, so its job fails when the robot runs it
         long secretId = project.quietly(ADMIN).post("/api/buckets", call().body(obj("name", SECRET,
-                "icon", obj("name", "Storage"), "history", false, "protectedData", false, "roleId", Role.ADMIN.id))
+                "icon", obj("name", "storage"), "history", false, "protectedData", false, "roleId", Role.ADMIN.id))
                 .expect(201)).<Number>path("id").longValue();
         insert(project, SECRET);
         Task task = removeTask(project, "used", ordersId, secretId);

@@ -14,8 +14,10 @@ import pl.databucket.e2e.model.Svg;
 import pl.databucket.e2e.model.Tag;
 import pl.databucket.e2e.support.Area;
 import pl.databucket.e2e.support.ApiSuite;
+import pl.databucket.e2e.support.DatabucketIcons;
 import pl.databucket.e2e.support.TestProject;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -98,6 +100,13 @@ class SettingsTagsIconsTest {
     @DisplayName("Icons")
     class Icons {
 
+        // every test project has the icons of Databucket (TestProject)
+        private static final List<String> DEFAULT_ICONS = List.of(DatabucketIcons.OUTLINED_NAME, DatabucketIcons.FILLED_NAME);
+
+        private static List<String> names(List<Svg> icons) {
+            return icons.stream().map(icon -> icon.name).sorted(Comparator.comparing(DEFAULT_ICONS::indexOf)).toList();
+        }
+
         @Test
         void creates_changes_and_removes_an_icon(TestProject project) {
             Svg created = settings.icons().create(new Svg().name("flag-pl").structure(FLAG));
@@ -107,7 +116,7 @@ class SettingsTagsIconsTest {
             verify("name", changed.name, "flag-poland");
 
             settings.icons().delete(created.id);
-            verify("icons", settings.icons().list().size(), 0);
+            verify("icons", names(settings.icons().list()), DEFAULT_ICONS);
         }
 
         @Test
@@ -117,7 +126,7 @@ class SettingsTagsIconsTest {
 
             verify("status", settings.icons().tryCreate(new Svg().name("evil").structure(withScript)).status(), 400);
             verify("status", settings.icons().tryCreate(new Svg().name("evil2").structure(withHandler)).status(), 400);
-            verify("icons", settings.icons().list().size(), 0);
+            verify("icons", names(settings.icons().list()), DEFAULT_ICONS);
         }
     }
 }

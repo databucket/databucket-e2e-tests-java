@@ -28,14 +28,14 @@ class RolesTest {
 
     @Test
     void a_ROBOT_can_not_manage_buckets(TestProject project) {
-        Bucket bucket = new Bucket().name("not-allowed").icon(new Icon().name("Storage"));
+        Bucket bucket = new Bucket().name("not-allowed").icon(new Icon().name("storage"));
 
         verify("status", project.as(ROBOT).settings().buckets().tryCreate(bucket).status(), 403);
     }
 
     @Test
     void an_ADMIN_creates_a_bucket_that_the_project_members_see(TestProject project) {
-        project.as(ADMIN).settings().buckets().create(new Bucket().name("customers").icon(new Icon().name("Storage"))
+        project.as(ADMIN).settings().buckets().create(new Bucket().name("customers").icon(new Icon().name("storage"))
                 .history(true).roleId((short) Role.MEMBER.id));
 
         var names = project.as(MEMBER).settings().accessTree().bucketNames();

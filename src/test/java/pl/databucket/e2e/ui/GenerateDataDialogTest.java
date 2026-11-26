@@ -20,7 +20,6 @@ import java.util.stream.IntStream;
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static pl.databucket.e2e.support.Json.obj;
-import static pl.databucket.e2e.support.Screenshots.screenshot;
 import static pl.databucket.e2e.support.UserKey.MEMBER;
 import static pl.databucket.e2e.support.UserKey.ROBOT;
 import static pl.databucket.e2e.support.Verify.check;
@@ -92,7 +91,6 @@ class GenerateDataDialogTest {
                 .check("the preview has 10 rows", () -> assertThat(dialog.preview().locator("tbody tr")).hasCount(10))
                 .check("the first row has user-1@example.com",
                         () -> assertThat(dialog.preview().locator("tbody tr").first()).containsText("user-1@example.com")));
-        screenshot(page, "preview");
         verify("count", people(project).count(Search.all()), 0);
 
         dialog.setRows(25);
@@ -151,7 +149,6 @@ class GenerateDataDialogTest {
                         () -> assertThat(dialog.error()).containsText("Nothing has been generated"))
                 .check("the error names $.city", () -> assertThat(dialog.error()).containsText("$.city"))
                 .check("the dialog stays open", () -> assertThat(dialog.dialog()).isVisible()));
-        screenshot(page, "refused");
         verify("count", people(project).count(Search.all()), 0);
     }
 }

@@ -28,7 +28,7 @@ class SettingsRulesTest {
     /** The settings with a name of at most 30 characters, and a valid object of each. */
     static Stream<Arguments> named() {
         return Stream.of(
-                Arguments.of("/api/buckets", Map.of("icon", Map.of("name", "Storage"))),
+                Arguments.of("/api/buckets", Map.of("icon", Map.of("name", "storage"))),
                 Arguments.of("/api/classes", Map.of()),
                 Arguments.of("/api/enums", Map.of("items", java.util.List.of())),
                 Arguments.of("/api/tags", Map.of()),

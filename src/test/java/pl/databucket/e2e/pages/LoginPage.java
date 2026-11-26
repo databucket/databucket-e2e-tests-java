@@ -3,7 +3,7 @@ package pl.databucket.e2e.pages;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
-import io.qameta.allure.Allure;
+import pl.databucket.e2e.support.Screenshots;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -28,14 +28,14 @@ public final class LoginPage {
     }
 
     public void open() {
-        Allure.step("Open the login page", () -> {
+        Screenshots.step("Open the login page", () -> {
             page.navigate("/login");
             assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Login"))).isVisible();
         });
     }
 
     public void signIn(String username, String password) {
-        Allure.step("Sign in as " + username, () -> {
+        Screenshots.step("Sign in as " + username, () -> {
             username().fill(username);
             password().fill(password);
             loginButton().click();

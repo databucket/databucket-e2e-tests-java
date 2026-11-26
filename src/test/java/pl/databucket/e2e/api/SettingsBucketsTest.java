@@ -46,7 +46,7 @@ class SettingsBucketsTest {
     }
 
     static Bucket bucket(String name) {
-        return new Bucket().name(name).icon(new Icon().name("Storage")).roleId((short) Role.AGENT.id);
+        return new Bucket().name(name).icon(new Icon().name("storage")).roleId((short) Role.AGENT.id);
     }
 
     @Test
